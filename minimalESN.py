@@ -16,7 +16,7 @@ import scipy
 trainLen = 5000
 testLen = 1000
 initLen = 1000
-data = np.loadtxt('data.txt')
+data = np.loadtxt('MackeyGlass_t17.txt')
 
 
 # plot some of it

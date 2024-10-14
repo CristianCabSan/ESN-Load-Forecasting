@@ -154,7 +154,14 @@ function custom_logger(information)
     println("$information")	
 	println("minimum: $(information.best_sol.f)")
 	println("hyperparameters: $(information.best_sol.x[1])")
-	Wandb.log(lg, Dict("minError" => information.best_sol.f, "hyperparameters" => "$(information.best_sol.x)"))
+	hyperparams_dict = Dict(
+    "alpha" => information.best_sol.x[1],
+    "beta" => information.best_sol.x[2],
+    "rho" => information.best_sol.x[3],
+    "in_s" => information.best_sol.x[4]
+	)
+	
+	Wandb.log(lg, Dict("minError" => information.best_sol.f, "hyperparameters" => hyperparams_dict))
 	#wandb.log({'acc': 0.9, 'epoch': 3, 'batch': 117})
 end
 
