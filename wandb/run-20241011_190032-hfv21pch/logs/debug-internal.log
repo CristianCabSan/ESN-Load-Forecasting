@@ -1,0 +1,10 @@
+{"time":"2024-10-11T19:00:32.3337167+02:00","level":"INFO","msg":"using version","core version":"0.18.3"}
+{"time":"2024-10-11T19:00:32.3337167+02:00","level":"INFO","msg":"created symlink","path":"C:\\Users\\Cristian\\git\\ESN_Pruebas\\wandb\\run-20241011_190032-hfv21pch\\logs\\debug-core.log"}
+{"time":"2024-10-11T19:00:32.3347567+02:00","level":"ERROR","msg":"dialing: google: could not find default credentials. See https://cloud.google.com/docs/authentication/external/set-up-adc for more information"}
+{"time":"2024-10-11T19:00:32.5264442+02:00","level":"INFO","msg":"created new stream","id":"hfv21pch"}
+{"time":"2024-10-11T19:00:32.5264442+02:00","level":"INFO","msg":"stream: started","id":"hfv21pch"}
+{"time":"2024-10-11T19:00:32.5264442+02:00","level":"INFO","msg":"writer: Do: started","stream_id":{"value":"hfv21pch"}}
+{"time":"2024-10-11T19:00:32.5264442+02:00","level":"INFO","msg":"handler: started","stream_id":{"value":"hfv21pch"}}
+{"time":"2024-10-11T19:00:32.5264442+02:00","level":"INFO","msg":"sender: started","stream_id":{"value":"hfv21pch"}}
+{"time":"2024-10-11T19:00:33.3869417+02:00","level":"INFO","msg":"wandb-core","!BADKEY":null}
+{"time":"2024-10-11T19:00:33.3909434+02:00","level":"INFO","msg":"Starting system monitor"}

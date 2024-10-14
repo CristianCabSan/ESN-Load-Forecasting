@@ -8,32 +8,43 @@ Distributed under MIT license https://opensource.org/licenses/MIT
 """
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy import linalg 
+from scipy import linalg
+import scipy
 # numpy.linalg is also an option for even fewer dependencies
 
 # load the data
-trainLen = 2000
-testLen = 2000
-initLen = 100
-data = np.loadtxt('MackeyGlass_t17.txt')
+trainLen = 5000
+testLen = 1000
+initLen = 1000
+data = np.loadtxt('data.txt')
+
 
 # plot some of it
-plt.figure(10).clear()
-plt.plot(data[:1000])
-plt.title('A sample of data')
+#plt.figure(10).clear()
+#plt.plot(data[:1000])
+#plt.title('A sample of data')
 
 # generate the ESN reservoir
 inSize = outSize = 1
-resSize = 1000
+resSize = 800
+
+
+
+
 a = 0.3 # leaking rate
 np.random.seed(42)
-Win = (np.random.rand(resSize,1+inSize) - 0.5) * 1
-W = np.random.rand(resSize,resSize) - 0.5 
+Win = (np.random.rand(resSize,1+inSize) - 0.5) * 0.1
+W = scipy.sparse.random( 3,3, density=0.2)
+W.todense()
+#np.matrix(W.todense())
+print(type(W))
+#print(W)
+#np.random.rand(resSize,resSize, density=0.2) - 0.5 
 # normalizing and setting spectral radius (correct, slow):
 print('Computing spectral radius...')
 rhoW = max(abs(linalg.eig(W)[0]))
 print('done.')
-W *= 1.25 / rhoW
+W *= 0.8605 / rhoW
 
 # allocated memory for the design (collected states) matrix
 X = np.zeros((1+inSize+resSize,trainLen-initLen))
@@ -75,22 +86,31 @@ for t in range(testLen):
 errorLen = 500
 mse = sum( np.square( data[trainLen+1:trainLen+errorLen+1] - 
     Y[0,0:errorLen] ) ) / errorLen
+
+
+
+
+
 print('MSE = ' + str( mse ))
     
+
+
 # plot some signals
 plt.figure(1).clear()
-plt.plot( data[trainLen+1:trainLen+testLen+1], 'g' )
-plt.plot( Y.T, 'b' )
+plt.plot( data[:1000], 'g' )
+plt.ylim(0,10)
+plt.plot( Y.T[:1000], 'b' )
 plt.title('Target and generated signals $y(n)$ starting at $n=0$')
 plt.legend(['Target signal', 'Free-running predicted signal'])
 
-plt.figure(2).clear()
-plt.plot( X[0:20,0:200].T )
-plt.title(r'Some reservoir activations $\mathbf{x}(n)$')
+#plt.figure(2).clear()
+#plt.plot( X[0:20,0:200].T )
+#plt.title(r'Some reservoir activations $\mathbf{x}(n)$')
 
-plt.figure(3).clear()
-plt.bar( np.arange(1+inSize+resSize), Wout[0].T )
-plt.title(r'Output weights $\mathbf{W}^{out}$')
-
+#plt.figure(3).clear()
+#plt.bar( np.arange(1+inSize+resSize), Wout[0].T )
+#plt.title(r'Output weights $\mathbf{W}^{out}$')
 plt.show()
+
+
 
