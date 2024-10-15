@@ -22,8 +22,11 @@ Population = 20
 selfTrust = 2.0
 neighbourTrust = 2.0
 inertia = 0.8
+
+#alpha,		beta,		rho,				in_s
+#leaking, 	reg coef, 	spectral radius, 	input scaling
 lower_parameters = 0.01, 1*10^(-8), 0.01, 0.1
-upper_parameters = 0.5, 1*10^(-4), 2, 10
+upper_parameters = 0.3, 1*10^(-4), 1, 5
 
 PSO(;
     N  = Population,
@@ -80,7 +83,7 @@ function fitness(hyperparameters)
 	alpha, beta, rho, in_s = hyperparameters
 	
 	Win = (rand(resSize, 1+inSize) .- 0.5) .* 1
-	W = SparseArrays.sprand(resSize, resSize, density, x-> rand(Uniform(-in_s,in_s), x )  )
+	W = SparseArrays.sprand(resSize, resSize, density, x-> rand(Uniform(-in_s,in_s), x ))
 	W = Array(W)
 
 	# normalizing and setting spectral radius
