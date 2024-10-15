@@ -8,8 +8,14 @@ Distributed under MIT license https://opensource.org/licenses/MIT
 
 using DelimitedFiles
 import Random
-using Plots
 using LinearAlgebra
+import SparseArrays
+using Distributions
+using Metaheuristics
+using Plots
+using Wandb
+using Dates
+using Logging
 
 # load the data
 trainLen = 2000
@@ -26,10 +32,11 @@ randomSeed = 42
 Random.seed!(randomSeed)
 
 #hyperparameters
-alpha =             #Leaking Rate
-beta =              #Regularization Coef
-rho =               #Spectral Radius
-in_s =              #Input Scaling
+alpha = 0.18582897495305825     #Leaking Rate
+beta = 0.00002141456204105258   #Regularization Coef
+in_s = 1.5268437152991396       #Input Scaling
+rho = 0.08658646768396282       #Spectral Radius
+
 
 # plot some of it
 p1 = plot(data[1:1000], leg = false, title = "A sample of data", reuse=false)
@@ -37,12 +44,13 @@ p1 = plot(data[1:1000], leg = false, title = "A sample of data", reuse=false)
 
 Random.seed!(42)
 Win = (rand(resSize, 1+inSize) .- 0.5) .* 1
-W = rand(resSize, resSize) .- 0.5 
+W = SparseArrays.sprand(resSize, resSize, density, x-> rand(Uniform(-in_s,in_s), x ))
+W = Array(W)
 # normalizing and setting spectral radius
 print("Computing spectral radius...")
 rhoW = maximum(abs.(eigvals(W)))
 println("done.")
-W .*= (1.25 / rhoW)
+W .*= (rho / rhoW)
 
 # allocated memory for the design (collected states) matrix
 X = zeros(1+inSize+resSize, trainLen-initLen)
@@ -53,7 +61,7 @@ Yt = transpose(data[initLen+2:trainLen+1])
 x = zeros(resSize, 1)
 for t = 1:trainLen
     u = data[t]
-    global x = (1-a).*x .+ a.*tanh.( Win*[1;u] .+ W*x ) 
+    global x = (1-alpha).*x .+ alpha.*tanh.( Win*[1;u] .+ W*x ) 
     if t > initLen
         X[:,t-initLen] = [1;u;x]
     end
@@ -65,14 +73,14 @@ reg = 1e-8  # regularization coefficient
 #X_T = transpose(X) 
 #Wout = Yt*X_T * inv(X*X_T + reg*I)
 # using Julia backslash solver:
-Wout = transpose((X*transpose(X) + reg*I) \ (X*transpose(Yt)))
+Wout = transpose((X*transpose(X) + beta*I) \ (X*transpose(Yt)))
 
 # run the trained ESN in a generative mode. no need to initialize here, 
 # because x is initialized with training data and we continue from there.
 Y = zeros(outSize, testLen)
 u = data[trainLen+1]
 for t = 1:testLen 
-	global x = (1-a).*x .+ a.*tanh.( Win*[1;u] .+ W*x )
+	global x = (1-alpha).*x .+ alpha.*tanh.( Win*[1;u] .+ W*x )
 	y = Wout*[1;u;x]
 	Y[:,t] = y
 	# generative mode:
