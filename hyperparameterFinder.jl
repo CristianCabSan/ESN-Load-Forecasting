@@ -19,14 +19,14 @@ using Logging
 
 # PSO parameters
 Population = 20
-selfTrust = 2.0
-neighbourTrust = 2.0
+selfTrust = 1.8
+neighbourTrust = 1.5
 inertia = 0.8
 
 #alpha,		beta,		rho,				in_s
 #leaking, 	reg coef, 	spectral radius, 	input scaling
-lower_parameters = 0.01, 1*10^(-8), 0.01, 0.1
-upper_parameters = 0.3, 1*10^(-4), 1, 5
+lower_parameters = 0.001, 1*10^(-8), 0.01, 0.01
+upper_parameters = 0.99, 1*10^(-4), 2, 1
 
 PSO(;
     N  = Population,
@@ -38,10 +38,11 @@ PSO(;
 )
 
 # load the data
-trainLen = 2000
+trainLen = 10000
 testLen = 600
-initLen = 200
-data = readdlm("data.txt")
+initLen = 1200
+pre_data = readdlm("data.txt")
+data = pre_data ./ 10
 
 # generate the ESN reservoir
 inSize = outSize = 1
@@ -49,8 +50,6 @@ resSize = 1000
 density = 0.1
 errores = Dict()
 randomSeed = 42
-Random.seed!(randomSeed)
-
 
 # Start a new run, tracking hyperparameters in config
 
@@ -80,8 +79,9 @@ global_logger(lg)
 
 function fitness(hyperparameters)
 	#leaking, reg coef, spectral radius, input scaling
-	alpha, beta, rho, in_s = hyperparameters
-	
+	alpha, rho = hyperparameters
+	beta,in_s = 10^(-6), 1.0
+	Random.seed!(randomSeed)
 	Win = (rand(resSize, 1+inSize) .- 0.5) .* 1
 	W = SparseArrays.sprand(resSize, resSize, density, x-> rand(Uniform(-in_s,in_s), x ))
 	W = Array(W)
@@ -122,32 +122,24 @@ function fitness(hyperparameters)
 		# generative mode:
 		u = y
 		# this would be a predictive mode:
-		#global u = data[trainLen+t+1]
+		#u = data[trainLen+t+1]
 	end
 
 	# compute MSE for the first errorLen time steps
 	errorLen = testLen
 	mse = sum( abs2.( data[trainLen+2:trainLen+errorLen+1] .- 
 		Y[1,1:errorLen] ) ) / errorLen
-	
 	errores[mse] = hyperparameters
-	
-	#=
-	println("Poblador $i de iteracion $j")
-	if(i == (Population-1))	
-		# Get the element with the smallest key
-		best_hyperparameters, min_error,  = findmin(errores)
 
-		# Display the result
-		println("Minimum error from iteration $j: $min_error")
-		println("Best hyperparameters from iteration $j: $best_hyperparameters")
-		empty!(errores)
-		global i = 0
-		global j += 1
-	else 
-		global i += 1
-	end
-	=#
+	hyperparams_dict = Dict(
+	"minError" => mse,
+    "alpha" => alpha,
+    #"beta" => beta,
+    "rho" => rho,
+    #"in_s" => information.best_sol.x[4]
+	)
+
+	Wandb.log(lg, Dict("hyperparameters" => hyperparams_dict))
 
 	return mse
 end
@@ -156,33 +148,18 @@ function custom_logger(information)
     # Get the current best solution
     println("$information")	
 	println("minimum: $(information.best_sol.f)")
-	println("hyperparameters: $(information.best_sol.x[1])")
+	println("hyperparameters: $(information.best_sol.x)")
 	hyperparams_dict = Dict(
     "alpha" => information.best_sol.x[1],
     "beta" => information.best_sol.x[2],
-    "rho" => information.best_sol.x[3],
-    "in_s" => information.best_sol.x[4]
+    #"rho" => information.best_sol.x[3],
+    #"in_s" => information.best_sol.x[4]
 	)
 	
 	Wandb.log(lg, Dict("minError" => information.best_sol.f, "hyperparameters" => hyperparams_dict))
-	#wandb.log({'acc': 0.9, 'epoch': 3, 'batch': 117})
 end
 
+optimize(fitness, [0.001 0.01 ; 0.99 6], PSO())#; logger=custom_logger
+#cerrar log cuando pare
 
-optimize(fitness, [0.01 1*10^(-8) 0.01 0.1; 0.5 1*10^(-4) 2 10], PSO(); logger=custom_logger)
-
-#= 
-# plot some signals
-p2 = plot(data[trainLen+2:trainLen+testLen+1], c = RGB(0,0.75,0), label = "Target signal", reuse = false)
-plot!(transpose(Y), c = :blue, label = "Free-running predicted signal")
-title!("Target and generated signals y(n) starting at n=0")
-
-p3 = plot(transpose(X[1:20,1:200]), leg = false)
-title!("Some reservoir activations x(n)")
-
-p4 = bar(transpose(Wout), leg = false)
-title!("Output weights Wout")
-
-# display all 4 plots
-plot(p1, p2, p3, p4, size=(1200,800)) 
-=#
+close(lg)
