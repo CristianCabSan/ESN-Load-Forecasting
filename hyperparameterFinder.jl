@@ -72,15 +72,15 @@ lg = WandbLogger(project = "PSO-ESN",
 					"randomSeed" => randomSeed
 					)
 )
-global_logger(lg)
+
+
 
 #global i = 0
 #global j = 0
 
 function fitness(hyperparameters)
 	#leaking, reg coef, spectral radius, input scaling
-	alpha, rho = hyperparameters
-	beta,in_s = 10^(-6), 1.0
+	alpha, beta, rho, in_s = hyperparameters
 	Random.seed!(randomSeed)
 	Win = (rand(resSize, 1+inSize) .- 0.5) .* 1
 	W = SparseArrays.sprand(resSize, resSize, density, x-> rand(Uniform(-in_s,in_s), x ))
@@ -131,16 +131,6 @@ function fitness(hyperparameters)
 		Y[1,1:errorLen] ) ) / errorLen
 	errores[mse] = hyperparameters
 
-	hyperparams_dict = Dict(
-	"minError" => mse,
-    "alpha" => alpha,
-    #"beta" => beta,
-    "rho" => rho,
-    #"in_s" => information.best_sol.x[4]
-	)
-
-	Wandb.log(lg, Dict("hyperparameters" => hyperparams_dict))
-
 	return mse
 end
 
@@ -152,14 +142,17 @@ function custom_logger(information)
 	hyperparams_dict = Dict(
     "alpha" => information.best_sol.x[1],
     "beta" => information.best_sol.x[2],
-    #"rho" => information.best_sol.x[3],
-    #"in_s" => information.best_sol.x[4]
+    "rho" => information.best_sol.x[3],
+    "in_s" => information.best_sol.x[4]
 	)
 	
 	Wandb.log(lg, Dict("minError" => information.best_sol.f, "hyperparameters" => hyperparams_dict))
 end
 
-optimize(fitness, [0.001 0.01 ; 0.99 6], PSO())#; logger=custom_logger
+
+low_alpha, low_beta, low_rho, low_in_s = lower_parameters
+upper_alpha, upper_beta, upper_rho, upper_in_s = upper_parameters
+optimize(fitness, [low_alpha low_beta low_rho low_in_s; upper_alpha upper_beta upper_rho upper_in_s], PSO(); logger=custom_logger)
 #cerrar log cuando pare
 
 close(lg)
