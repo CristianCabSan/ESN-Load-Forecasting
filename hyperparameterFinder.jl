@@ -28,13 +28,12 @@ inertia = 0.8
 lower_parameters = 0.001, 1*10^(-8), 0.01, 0.01
 upper_parameters = 0.99, 1*10^(-4), 2, 1
 
-PSO(;
+custom_pso = PSO(;
     N  = Population,
     C1 = selfTrust,	
     C2 = neighbourTrust,
     ω  = inertia,	
-    information = Information(),
-    options = Options()
+    options = Options(iterations = 150)
 )
 
 # load the data
@@ -50,33 +49,6 @@ resSize = 1000
 density = 0.1
 errores = Dict()
 randomSeed = 42
-
-# Start a new run, tracking hyperparameters in config
-
-lg = WandbLogger(project = "PSO-ESN",
-				name = "Ajustes ESN-$(now())",
-				config = Dict(
-					"Population" => Population,
-					"selfTrust" => selfTrust,
-					"neighbourTrust" => neighbourTrust,
-					"inertia" => inertia,
-					"lower_parameters" => lower_parameters,
-					"upper_parameters" => upper_parameters,
-
-					"trainLen" => trainLen,
-					"testLen" => testLen,
-					"initLen" => initLen,
-
-					"resSize" => resSize,
-					"density" => density,
-					"randomSeed" => randomSeed
-					)
-)
-
-
-
-#global i = 0
-#global j = 0
 
 function fitness(hyperparameters)
 	#leaking, reg coef, spectral radius, input scaling
@@ -134,25 +106,53 @@ function fitness(hyperparameters)
 	return mse
 end
 
-function custom_logger(information)
-    # Get the current best solution
-    println("$information")	
-	println("minimum: $(information.best_sol.f)")
-	println("hyperparameters: $(information.best_sol.x)")
-	hyperparams_dict = Dict(
-    "alpha" => information.best_sol.x[1],
-    "beta" => information.best_sol.x[2],
-    "rho" => information.best_sol.x[3],
-    "in_s" => information.best_sol.x[4]
-	)
-	
-	Wandb.log(lg, Dict("minError" => information.best_sol.f, "hyperparameters" => hyperparams_dict))
-end
 
 
 low_alpha, low_beta, low_rho, low_in_s = lower_parameters
 upper_alpha, upper_beta, upper_rho, upper_in_s = upper_parameters
-optimize(fitness, [low_alpha low_beta low_rho low_in_s; upper_alpha upper_beta upper_rho upper_in_s], PSO(); logger=custom_logger)
-#cerrar log cuando pare
 
-close(lg)
+function main()
+	# Start a new run, tracking hyperparameters in config
+	lg = WandbLogger(project = "PSO-ESN",
+	name = "Ajustes ESN-$(now())",
+	config = Dict(
+		"Population" => Population,
+		"selfTrust" => selfTrust,
+		"neighbourTrust" => neighbourTrust,
+		"inertia" => inertia,
+		"lower_parameters" => lower_parameters,
+		"upper_parameters" => upper_parameters,
+
+		"trainLen" => trainLen,
+		"testLen" => testLen,
+		"initLen" => initLen,
+
+		"resSize" => resSize,
+		"density" => density,
+		"randomSeed" => randomSeed
+		)
+	)
+
+	function custom_logger(information)
+		# Get the current best solution
+		println("$information")	
+		println("minimum: $(information.best_sol.f)")
+		println("hyperparameters: $(information.best_sol.x)")
+		hyperparams_dict = Dict(
+		"alpha" => information.best_sol.x[1],
+		"beta" => information.best_sol.x[2],
+		"rho" => information.best_sol.x[3],
+		"in_s" => information.best_sol.x[4]
+		)
+		
+		Wandb.log(lg, Dict("minError" => information.best_sol.f, "hyperparameters" => hyperparams_dict))
+	end
+
+	optimize(fitness, [low_alpha low_beta low_rho low_in_s; upper_alpha upper_beta upper_rho upper_in_s], custom_pso; logger=custom_logger)
+	print("A")
+	close(lg)
+end
+
+while(true)
+	main()
+end
