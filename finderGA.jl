@@ -1,11 +1,3 @@
-#=
-A minimalistic Echo State Networks demo with Mackey-Glass (delay 17) data 
-in "plain" Julia.
-from https://mantas.info/code/simple_esn/
-(c) 2020 Mantas Lukoševičius
-Distributed under MIT license https://opensource.org/licenses/MIT
-=#
-
 using DelimitedFiles
 import Random
 using LinearAlgebra
@@ -17,23 +9,32 @@ using Wandb
 using Dates
 using Logging
 
-# PSO parameters
+Random.seed!(rand(1:1000000))
+
+#= # PSO parameters
 Population = 20
 selfTrust = 1.8
 neighbourTrust = 1.5
-inertia = 0.8
+inertia = 0.8 =#
 
 #alpha,		beta,		rho,				in_s
 #leaking, 	reg coef, 	spectral radius, 	input scaling
 lower_parameters = 0.001, 1*10^(-8), 0.01, 0.01
 upper_parameters = 0.99, 1*10^(-4), 2, 1
 
-custom_pso = PSO(;
-    N  = Population,
-    C1 = selfTrust,	
-    C2 = neighbourTrust,
-    ω  = inertia,	
-    options = Options(iterations = 150)
+low_alpha, low_beta, low_rho, low_in_s = lower_parameters
+upper_alpha, upper_beta, upper_rho, upper_in_s = upper_parameters
+bounds = [low_alpha low_beta low_rho low_in_s; upper_alpha upper_beta upper_rho upper_in_s]
+
+custom_ga = GA(;
+    N = 5,
+    p_mutation  = 1e-5,
+    p_crossover = 0.5,
+    initializer = RandomPermutation(N=100),
+    selection   = TournamentSelection(),
+    crossover   = SBX(;bounds),
+    mutation    = SlightMutation(),
+    environmental_selection = ElitistReplacement()
 )
 
 # load the data
@@ -103,17 +104,17 @@ function fitness(hyperparameters)
 		Y[1,1:errorLen] ) ) / errorLen
 	errores[mse] = hyperparameters
 
+    print("MSE: $mse")
 	return mse
 end
 
 
 
-low_alpha, low_beta, low_rho, low_in_s = lower_parameters
-upper_alpha, upper_beta, upper_rho, upper_in_s = upper_parameters
+
 
 function main()
 	# Start a new run, tracking hyperparameters in config
-	lg = WandbLogger(project = "PSO-ESN",
+	#= lg = WandbLogger(project = "PSO-ESN",
 	name = "Ajustes ESN-$(now())",
 	config = Dict(
 		"Population" => Population,
@@ -131,26 +132,25 @@ function main()
 		"density" => density,
 		"randomSeed" => randomSeed
 		)
-	)
+	) =#
 
 	function custom_logger(information)
 		# Get the current best solution
 		println("$information")	
-		println("minimum: $(information.best_sol.f)")
+		#= println("minimum: $(information.best_sol.f)")
 		println("hyperparameters: $(information.best_sol.x)")
 		hyperparams_dict = Dict(
 		"alpha" => information.best_sol.x[1],
 		"beta" => information.best_sol.x[2],
 		"rho" => information.best_sol.x[3],
 		"in_s" => information.best_sol.x[4]
-		)
+		) =#
 		
-		Wandb.log(lg, Dict("minError" => information.best_sol.f, "hyperparameters" => hyperparams_dict))
+		#Wandb.log(lg, Dict("minError" => information.best_sol.f, "hyperparameters" => hyperparams_dict))
 	end
 
-	optimize(fitness, [low_alpha low_beta low_rho low_in_s; upper_alpha upper_beta upper_rho upper_in_s], custom_pso; logger=custom_logger)
-	print("A")
-	close(lg)
+	optimize(fitness, bounds, custom_ga; logger=custom_logger)
+	#close(lg)
 end
 
 while(true)
