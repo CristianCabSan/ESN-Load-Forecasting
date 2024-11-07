@@ -18,14 +18,15 @@ using Dates
 using Logging
 
 # load the data
-trainLen = 3*1440 #1440 minutes = 1 day
-testLen = 50
+trainLen = 90*1440 #1440 minutes = 1 day
+testLen = 150
 initLen = 1200
+paddingLen = (365*1440)+397 #To control the day it starts feeding data from (397 so it starts at 00:00)
 raw_data1 = readdlm("data.txt")
-pre_data1 = raw_data1[397:end] #397 so it starts at 00:00
+pre_data1 = raw_data1[paddingLen:end]
 
 raw_data2 = readdlm("formattedData.txt", ':')
-pre_data2 = raw_data2[397:end, 3]
+pre_data2 = raw_data2[paddingLen:end, 3]
 
 data1 = pre_data1 ./ 10
 data2 = pre_data2 ./ 10
@@ -173,5 +174,5 @@ println("With interpolation: $(fitness2(hyperparameters))")
 
 # display all 4 plots
 plot(p1,p2,p3,p4, size=(1200,800), ylim = (0,1))
-savefig("Documentacion/interpolationComparision($(trainLen ÷ 1440) days).png")
+savefig("Documentacion/Starts in day $((paddingLen-397)÷1440)/$testLen testLen/interpolationComparision($(trainLen ÷ 1440) days)($testLen testLen).png")
 

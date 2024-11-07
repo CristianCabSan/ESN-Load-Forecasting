@@ -31,7 +31,7 @@ custom_pso = PSO(;
 )
 
 # load the data
-trainLen = 10000
+trainLen = 60*1440
 testLen = 600
 initLen = 1200
 pre_data = readdlm("data.txt")
