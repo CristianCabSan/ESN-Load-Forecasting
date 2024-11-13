@@ -11,38 +11,22 @@ using Logging
 
 Random.seed!(rand(1:1000000))
 
-# PSO parameters
-Population = 20
-selfTrust = 1.8
-neighbourTrust = 1.5
-inertia = 0.8
-
-#alpha,		beta,		rho,				in_s
-#leaking, 	reg coef, 	spectral radius, 	input scaling
-lower_parameters = 0.001, 1*10^(-8), 0.01, 0.01
-upper_parameters = 0.99, 1*10^(-4), 2, 1
-
-custom_pso = PSO(;
-    N  = Population,
-    C1 = selfTrust,	
-    C2 = neighbourTrust,
-    ω  = inertia,	
-    options = Options(iterations = 150)
-)
-
-# load the data
-trainLen = 60*1440
+# Load the data
+trainLen = 1*1440
 testLen = 600
 initLen = 1200
-pre_data = readdlm("data.txt")
+raw_data = readdlm("formattedData.txt", ':')
+pre_data = raw_data[:, 3]
 data = pre_data ./ 10
 
-# generate the ESN reservoir
+# Generate the ESN reservoir
 inSize = outSize = 1
 resSize = 1000
 density = 0.1
 errores = Dict()
 randomSeed = 42
+
+maxCounter = 20
 
 function fitness(hyperparameters)
 	#leaking, reg coef, spectral radius, input scaling
@@ -100,14 +84,69 @@ function fitness(hyperparameters)
 	return mse
 end
 
+function custom_logger(information)
+	# Get the current best solution
+	println("$information")	
+	println("minimum: $(information.best_sol.f)")
+	println("hyperparameters: $(information.best_sol.x)")
+	hyperparams_dict = Dict(
+	"alpha" => information.best_sol.x[1],
+	"beta" => information.best_sol.x[2],
+	"rho" => information.best_sol.x[3],
+	"in_s" => information.best_sol.x[4]
+	)
+	
+	# Logs the information on Wandb
+	Wandb.log(lg, Dict("minError" => information.best_sol.f, "hyperparameters" => hyperparams_dict))
 
-
-low_alpha, low_beta, low_rho, low_in_s = lower_parameters
-upper_alpha, upper_beta, upper_rho, upper_in_s = upper_parameters
+	# If minimun doesnt change in counter iterations the PSO is forcefully stopped
+	current_minimum = information.best_sol.f
+	# Check if this is the first run or if the minimum has changed
+	if lastMinimum != 0 && lastMinimum == current_minimum
+		# Decrement the counter if the minimum hasn't improved
+		global counter -= 1
+		if counter == 0
+			println("########################## STOP ######################################")
+			custom_pso.status.stop = true
+		end
+	else
+		# Reset the counter if the minimum has changed
+		global counter = maxCounter
+	end
+	
+	# Update the last recorded minimum for the next iteration
+	global lastMinimum = current_minimum
+end
 
 function main()
+	# Execution control parameters
+	global counter = maxCounter
+    global lastMinimum = 0
+
+	# alpha,		beta,		rho,				in_s
+	# leaking, 	reg coef, 	spectral radius, 	input scaling
+	variation = rand(0.1:0.0001:2.0) #Adds a random variation for each iteration
+	lower_base_parameters = 0.001, 1*10^(-8), 0.01, 0.01
+	upper_base_parameters = 0.99, 1*10^(-4), 2, 1
+
+	lower_parameters = variation .* lower_base_parameters
+	upper_parameters = variation .* upper_base_parameters
+	# PSO parameters
+	Population = 30
+	selfTrust = 1.8
+	neighbourTrust = 1.5
+	inertia = 0.8
+
+	global custom_pso = PSO(;
+		N  = Population,
+		C1 = selfTrust,	
+		C2 = neighbourTrust,
+		ω  = inertia,	
+		options = Options(iterations = 150)
+	)
+
 	# Start a new run, tracking hyperparameters in config
-	lg = WandbLogger(project = "PSO-ESN",
+	global lg = WandbLogger(project = "PSO-ESN",
 	name = "Ajustes ESN-$(now())",
 	config = Dict(
 		"Population" => Population,
@@ -127,23 +166,12 @@ function main()
 		)
 	)
 
-	function custom_logger(information)
-		# Get the current best solution
-		println("$information")	
-		println("minimum: $(information.best_sol.f)")
-		println("hyperparameters: $(information.best_sol.x)")
-		hyperparams_dict = Dict(
-		"alpha" => information.best_sol.x[1],
-		"beta" => information.best_sol.x[2],
-		"rho" => information.best_sol.x[3],
-		"in_s" => information.best_sol.x[4]
-		)
-		
-		Wandb.log(lg, Dict("minError" => information.best_sol.f, "hyperparameters" => hyperparams_dict))
-	end
+	low_alpha, low_beta, low_rho, low_in_s = lower_parameters
+	upper_alpha, upper_beta, upper_rho, upper_in_s = upper_parameters
 
 	optimize(fitness, [low_alpha low_beta low_rho low_in_s; upper_alpha upper_beta upper_rho upper_in_s], custom_pso; logger=custom_logger)
 	close(lg)
+	sleep(30) # Ensures log is closed before restarting
 end
 
 while(true)
