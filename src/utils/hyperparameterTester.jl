@@ -17,22 +17,33 @@ using Wandb
 using Dates
 using Logging
 
-# load the data
-trainLen = 90*1440 #1440 minutes = 1 day
-testLen = 150
+# Load the data
+# Load the data from the text file, omitting the header
+script_dir = @__DIR__
+
+# Move up two levels to the project root and construct the path to the resources folder
+resources_dir = joinpath(script_dir, "..", "..", "resources")
+
+# Construct the full path to the file
+file_name = "data10secs.txt"
+file_path = joinpath(resources_dir, file_name)
+
+# Check if the file exists, read it into `data` if it does, or print an error
+if isfile(file_path)
+    raw_data = readdlm(file_path, ';', String)
+else
+    println("File not found at path: $file_path")
+    exit(1)  # Exit if file is not found
+end
+
+trainLen = 10*1440
+testLen = 600
 initLen = 1200
-paddingLen = (365*1440)+397 #To control the day it starts feeding data from (397 so it starts at 00:00)
-raw_data1 = readdlm("data.txt")
-pre_data1 = raw_data1[paddingLen:end]
+pre_data = raw_data[:, 3]
+data = parse.(Float64,pre_data) ./ 10
 
-raw_data2 = readdlm("formattedData.txt", ':')
-pre_data2 = raw_data2[paddingLen:end, 3]
-
-data1 = pre_data1 ./ 10
-data2 = pre_data2 ./ 10
-
-p1 = plot(data1[1:trainLen], leg = false, title = "A sample of data", reuse=false)
-p3 = plot(data2[1:trainLen], leg = false, title = "A sample of data", reuse=false)
+#p1 = plot(data[1:trainLen], leg = false, title = "A sample of data", reuse=false)
+#p3 = plot(data2[1:trainLen], leg = false, title = "A sample of data", reuse=false)
 
 # generate the ESN reservoir
 inSize = outSize = 1
@@ -42,10 +53,10 @@ errores = Dict()
 randomSeed = 42
 
 #hyperparameters
-alpha = 0.842538   #Leaking Rate
-beta = 5.91997e-5   #Regularization Coef
-in_s = 1.35975      #Input Scaling
-rho = 0.449798     #Spectral Radius
+alpha = 0.41569843337895557   #Leaking Rate
+beta = 3.107096229071814e-6   #Regularization Coef
+in_s = 0.84571596127798     #Input Scaling
+rho =  1.1032     #Spectral Radius
 hyperparameters = alpha, beta, in_s, rho
 
 # plot some of it
@@ -168,11 +179,11 @@ function fitness2(hyperparameters)
 	
 	return mse
 end
-#= println("trainLen: $trainLen")
-println("Without interpolation: $(fitness(hyperparameters, data1))")
-println("With interpolation: $(fitness2(hyperparameters))")
+#println("trainLen: $trainLen")
+println("Without interpolation: $(fitness(hyperparameters, data))")
+#println("With interpolation: $(fitness2(hyperparameters))")
 
 # display all 4 plots
-plot(p1,p2,p3,p4, size=(1200,800), ylim = (0,1))
-savefig("Documentacion/Starts in day $((paddingLen-397)÷1440)/$testLen testLen/interpolationComparision($(trainLen ÷ 1440) days)($testLen testLen).png") =#
+plot(p2, size=(1200,800))
+#savefig("Documentacion/Starts in day $((paddingLen-397)÷1440)/$testLen testLen/interpolationComparision($(trainLen ÷ 1440) days)($testLen testLen).png")
 

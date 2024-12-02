@@ -12,12 +12,29 @@ using Logging
 Random.seed!(rand(1:1000000))
 
 # Load the data
-trainLen = 60*1440
+# Load the data from the text file, omitting the header
+script_dir = @__DIR__
+
+# Move up two levels to the project root and construct the path to the resources folder
+resources_dir = joinpath(script_dir, "..", "..", "resources")
+
+# Construct the full path to the file
+file_name = "data10secs.txt"
+file_path = joinpath(resources_dir, file_name)
+
+# Check if the file exists, read it into `data` if it does, or print an error
+if isfile(file_path)
+    raw_data = readdlm(file_path, ';', String)
+else
+    println("File not found at path: $file_path")
+    exit(1)  # Exit if file is not found
+end
+
+trainLen = 10*1440
 testLen = 600
 initLen = 1200
-raw_data = readdlm("formattedData.txt", ':')
 pre_data = raw_data[:, 3]
-data = pre_data ./ 10
+data = parse.(Float64,pre_data) ./ 10
 
 # Generate the ESN reservoir
 inSize = outSize = 1
