@@ -1,2 +1,3 @@
-NILM-based for households project for Final Degree Thesis
+NILM-based for households
+Intended as Final Degree Project for Computer Engineering
 By: Cristian Caballero Sánchez
