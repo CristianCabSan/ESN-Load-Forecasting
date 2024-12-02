@@ -17,15 +17,15 @@ The project centers on **Non-Intrusive Load Monitoring (NILM)**, a method for es
 
 ---
 
-## Proposed as
-
-Final Degree Project for Computer Engineering  
-**By:** Cristian Caballero Sánchez
-
----
-
 ## Future Work
 
 - Validate the proposed methods using publicly available NILM datasets.
 - Extend the system to support real-time monitoring.
 - Prepare comprehensive documentation and a detailed final report.
+
+---
+
+## Proposed as
+
+Final Degree Project for Computer Engineering  
+**By:** Cristian Caballero Sánchez
