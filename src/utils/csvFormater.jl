@@ -8,13 +8,12 @@ using Dates
 =#
 
 # Get the data
-data_name = "prueba.txt"
+data_name = "household_power_consumption.txt"
 resources_dir = joinpath(@__DIR__, "..", "..", "resources")
 data_path = joinpath(resources_dir, data_name)
 
 # Read the data
 data = CSV.read(data_path, DataFrame; delim = ";")
-print(data.Time[1:3])
 dates = Date.(data.Date, "dd/MM/yyyy")
 times = data.Time
 
