@@ -25,5 +25,5 @@ data = select(data, :DateTime, Not(:DateTime))
 # Remove the original Date and Time columns
 select!(data, Not([:Date, :Time]))
 
-# Write the modified DataFrame to a CSV file
+# Save the updated DataFrame to a new CSV file
 CSV.write("$resources_dir/data.csv", data)
