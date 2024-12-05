@@ -12,7 +12,8 @@ data_name = "household_power_consumption.txt"
 resources_dir = joinpath(@__DIR__, "..", "..", "resources")
 data_path = joinpath(resources_dir, data_name)
 data = CSV.read(data_path, DataFrame; delim = ";")
-dates = Date.(data.Date, "dd/MM/yyyy")
+df = DateFormat("dd/mm/yyyy")
+dates = Date.(data.Date, df)
 times = data.Time
 
 # Creates and adds the new column as the first one
