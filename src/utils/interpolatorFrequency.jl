@@ -37,5 +37,5 @@ for col in cols_to_interpolate
     interp_data[!, col] = f.(new_numeric_times)
 end
 
-# Save or inspect the interpolated data
+# Save the updated DataFrame to a new CSV file
 CSV.write(joinpath(resources_dir, "data10secs.csv"), interp_data)
