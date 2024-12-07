@@ -1,20 +1,32 @@
-using CSV, Dates
+using CSV
+using Dates
+using DataFrames
 
-# Load the dataset (replace "input_data.csv" with your actual filename)
-data = CSV.read("input_data.csv", DataFrame; delim=';', header=false)
-rename!(data, [:Date, :Time, :Consumption])
+#= 
+    Takes a .csv file wiht a DateTime column and generates two new ones.
+    Seconds_from_year_start: Represents the number of seconds elapsed since the start of the year 
+    corresponding to the DateTime value in each row.
+    
+    Seconds_from_day_start: Represents the number of seconds elapsed since the start of the day 
+    corresponding to the DateTime value in each row.
+=#
 
-# Parse Date and Time into a single DateTime object
-data.Timestamp = DateTime.(data.Date .* " " .* data.Time, "dd/mm/yyyy HH:MM:SS")
+# Load the data
+data_name = "data10secs.csv"
+resources_dir = joinpath(@__DIR__, "..", "..", "resources")
+data_path = joinpath(resources_dir, data_name)
+data = CSV.read(data_path, DataFrame)
 
-# Add a column for the start of the year (relative timestamp from Jan 1 of the same year)
-data.StartOfYearTimestamp = Int.((data.Timestamp .- DateTime(year.(data.Timestamp))) ./ Millisecond(1)) ./ 1000
+# Generates and adds the new columns
+data[!, :Miliseconds_from_year_start] = [
+    Dates.value(DateTime(row.DateTime) - DateTime(year(DateTime(row.DateTime)), 1, 1))
+    for row in eachrow(data)
+]
 
-# Add a column for the start of the day (relative timestamp in seconds from the start of the same day)
-data.StartOfDayTimestamp = Int.((data.Timestamp .- floor.(data.Timestamp, Day)) ./ Second(1))
+data[!, :Miliseconds_from_day_start] = [
+    Dates.value(DateTime(row.DateTime) - DateTime(year(DateTime(row.DateTime)), month(DateTime(row.DateTime)), day(DateTime(row.DateTime))))
+    for row in eachrow(data)
+]
 
-# Save the new dataset
-output_filename = "processed_dataset_with_timestamps.csv"
-CSV.write(output_filename, data)
-
-println("Dataset processed and saved as $output_filename.")
+# Save the updated DataFrame to a new CSV file
+CSV.write(joinpath(resources_dir, "data10secs_with_timestamps.csv"), data)
