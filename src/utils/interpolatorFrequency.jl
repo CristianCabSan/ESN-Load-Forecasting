@@ -3,6 +3,11 @@ using DataFrames
 using Dates
 using Interpolations
 
+#= 
+    Takes a .csv file and generates intermediate values through interpolation 
+    to make a new gap of "inerpolation_interval" seconds.
+=#
+
 # Set interpolation interval (in seconds)
 interpolation_interval = 10  
 
