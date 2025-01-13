@@ -1,4 +1,3 @@
-using DelimitedFiles
 import Random
 using LinearAlgebra
 import SparseArrays
@@ -8,36 +7,28 @@ using Plots
 using Wandb
 using Dates
 using Logging
+using CSV
+using DataFrames
 
 Random.seed!(rand(1:1000000))
 
 # Load the data
-# Load the data from the text file, omitting the header
-script_dir = @__DIR__
+data_name = "data10secs_with_timestamps.csv"
+resources_dir = joinpath(@__DIR__, "..", "..", "resources")
+data_path = joinpath(resources_dir, data_name)
+data = CSV.read(data_path, DataFrame)
 
-# Move up two levels to the project root and construct the path to the resources folder
-resources_dir = joinpath(script_dir, "..", "..", "resources")
-
-# Construct the full path to the file
-file_name = "data10secs.txt"
-file_path = joinpath(resources_dir, file_name)
-
-# Check if the file exists, read it into `data` if it does, or print an error
-if isfile(file_path)
-    raw_data = readdlm(file_path, ';', String)
-else
-    println("File not found at path: $file_path")
-    exit(1)  # Exit if file is not found
-end
+values = data[:, 2]
+timestampYear = data[:, 9]
+timestampDay = data[:, 10]
 
 trainLen = 10*1440
 testLen = 600
 initLen = 1200
-pre_data = raw_data[:, 3]
-data = parse.(Float64,pre_data) ./ 10
 
 # Generate the ESN reservoir
-inSize = outSize = 1
+inSize = 3
+outSize = 1
 resSize = 1000
 density = 0.1
 errores = Dict()
@@ -46,60 +37,61 @@ randomSeed = 42
 maxCounter = 20
 
 function fitness(hyperparameters)
-	#leaking, reg coef, spectral radius, input scaling
-	alpha, beta, rho, in_s = hyperparameters
-	Random.seed!(randomSeed)
-	Win = (rand(resSize, 1+inSize) .- 0.5) .* 1
-	W = SparseArrays.sprand(resSize, resSize, density, x-> rand(Uniform(-in_s,in_s), x ))
-	W = Array(W)
+    # Leaking, regularization coefficient, spectral radius, input scaling
+    alpha, beta, rho, in_s = hyperparameters
+    Random.seed!(randomSeed)
+    
+    # Update input size to account for three inputs
+    Win = (rand(resSize, 1 + inSize) .- 0.5) .* 1
+    W = SparseArrays.sprand(resSize, resSize, density, x -> rand(Uniform(-in_s, in_s), x))
+    W = Array(W)
 
-	# normalizing and setting spectral radius
-	#print("Computing spectral radius...")
-	rhoW = maximum(abs.(eigvals(W)))
-	#println("done.")
-	W .*= (rho / rhoW)
+    # Normalizing and setting spectral radius
+    rhoW = maximum(abs.(eigvals(W)))
+    W .*= (rho / rhoW)
 
-	# allocated memory for the design (collected states) matrix
-	X = zeros(1+inSize+resSize, trainLen-initLen)
-	# set the corresponding target matrix directly
-	Yt = transpose(data[initLen+2:trainLen+1]) 
+    # Allocated memory for the design (collected states) matrix
+    X = zeros(1 + inSize + resSize, trainLen - initLen)
+    # Set the corresponding target matrix directly
+    Yt = transpose(values[initLen + 2:trainLen + 1])
 
-	# run the reservoir with the data and collect X
-	x = zeros(resSize, 1)
-	for t = 1:trainLen
-		u = data[t]
-		x = (1-alpha).*x .+ alpha.*tanh.( Win*[1;u] .+ W*x ) 
-		if t > initLen
-			X[:,t-initLen] = [1;u;x]
-		end
-	end
+    # Run the reservoir with the data and collect X
+    x = zeros(resSize, 1)
+    for t = 1:trainLen
+        # Use all three inputs: data, timestampYear, and timestampDay
+        u = [values[t]; timestampYear[t]; timestampDay[t]]
+        x = (1 - alpha) .* x .+ alpha .* tanh.(Win * [1; u] .+ W * x)
+        if t > initLen
+            X[:, t - initLen] = [1; u; x]
+        end
+    end
 
-	# train the output by ridge regression
-	# using Julia backslash solver:
-	Wout = transpose((X*transpose(X) + beta*I) \ (X*transpose(Yt)))
+    # Train the output by ridge regression using Julia backslash solver
+    Wout = transpose((X * transpose(X) + beta * I) \ (X * transpose(Yt)))
 
-	# run the trained ESN in a generative mode. no need to initialize here, 
-	# because x is initialized with training data and we continue from there.
-	Y = zeros(outSize, testLen)
-	u = data[trainLen+1]
-	for t = 1:testLen 
-		x = (1-alpha).*x .+ alpha.*tanh.( Win*[1;u] .+ W*x )
-		y = Wout*[1;u;x]
-		Y[:,t] = y
-		# generative mode:
-		u = y
-		# this would be a predictive mode:
-		#u = data[trainLen+t+1]
-	end
+    # Run the trained ESN in a generative mode
+    global Y = zeros(outSize, testLen)
+    u = [values[trainLen + 1]; timestampYear[trainLen + 1]; timestampDay[trainLen + 1]]
+    for t = 1:testLen
+        x = (1 - alpha) .* x .+ alpha .* tanh.(Win * [1; u] .+ W * x)
+        y = Wout * [1; u; x]
+        global Y[:, t] = y
+        # Generative mode: use the predicted output as input for the next step
+        u = [y[1]; timestampYear[trainLen + t + 1]; timestampDay[trainLen + t + 1]]
+    end
 
-	# compute MSE for the first errorLen time steps
-	errorLen = testLen
-	mse = sum( abs2.( data[trainLen+2:trainLen+errorLen+1] .- 
-		Y[1,1:errorLen] ) ) / errorLen
-	errores[mse] = hyperparameters
+    # Compute MSE for the first errorLen time steps
+    errorLen = testLen
+    global mse = sum(abs2.(values[trainLen + 2:trainLen + errorLen + 1] .- Y[1, 1:errorLen])) / errorLen
 
-	return mse
+    errores[mse] = hyperparameters
+    global p2 = plot(values[trainLen:trainLen + testLen + 2], c = RGB(0, 0.75, 0), label = "Target signal", reuse = false)
+    plot!(transpose(Y), c = :blue, label = "Free-running predicted signal")
+    title!(p2, "Target and generated signals with timestamps \n MSE = $(mse)")
+
+    return mse
 end
+
 
 function custom_logger(information)
 	# Get the current best solution
@@ -114,7 +106,7 @@ function custom_logger(information)
 	)
 	
 	# Logs the information on Wandb
-	Wandb.log(lg, Dict("minError" => information.best_sol.f, "hyperparameters" => hyperparams_dict))
+	#Wandb.log(lg, Dict("minError" => information.best_sol.f, "hyperparameters" => hyperparams_dict))
 
 	# If minimun doesnt change in counter iterations the PSO is forcefully stopped
 	current_minimum = information.best_sol.f
@@ -162,32 +154,32 @@ function main()
 		options = Options(iterations = 150)
 	)
 
-	# Start a new run, tracking hyperparameters in config
-	global lg = WandbLogger(project = "PSO-ESN",
-	name = "Ajustes ESN-$(now())",
-	config = Dict(
-		"Population" => Population,
-		"selfTrust" => selfTrust,
-		"neighbourTrust" => neighbourTrust,
-		"inertia" => inertia,
-		"lower_parameters" => lower_parameters,
-		"upper_parameters" => upper_parameters,
+	# # Start a new run, tracking hyperparameters in config
+	# global lg = WandbLogger(project = "PSO-ESN",
+	# name = "Ajustes ESN-$(now())",
+	# config = Dict(
+	# 	"Population" => Population,
+	# 	"selfTrust" => selfTrust,
+	# 	"neighbourTrust" => neighbourTrust,
+	# 	"inertia" => inertia,
+	# 	"lower_parameters" => lower_parameters,
+	# 	"upper_parameters" => upper_parameters,
 
-		"trainLen" => trainLen,
-		"testLen" => testLen,
-		"initLen" => initLen,
+	# 	"trainLen" => trainLen,
+	# 	"testLen" => testLen,
+	# 	"initLen" => initLen,
 
-		"resSize" => resSize,
-		"density" => density,
-		"randomSeed" => randomSeed
-		)
-	)
+	# 	"resSize" => resSize,
+	# 	"density" => density,
+	# 	"randomSeed" => randomSeed
+	# 	)
+	# )
 
 	low_alpha, low_beta, low_rho, low_in_s = lower_parameters
 	upper_alpha, upper_beta, upper_rho, upper_in_s = upper_parameters
 
 	optimize(fitness, [low_alpha low_beta low_rho low_in_s; upper_alpha upper_beta upper_rho upper_in_s], custom_pso; logger=custom_logger)
-	close(lg)
+	# close(lg)
 	sleep(30) # Ensures log is closed before restarting
 end
 
