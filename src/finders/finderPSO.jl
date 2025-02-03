@@ -13,7 +13,7 @@ using DataFrames
 Random.seed!(rand(1:1000000))
 
 # Load the data
-data_name = "data10secs_with_timestamps.csv"
+data_name = "data10secs_with_timestamps_random_days.csv"
 resources_dir = joinpath(@__DIR__, "..", "..", "resources")
 data_path = joinpath(resources_dir, data_name)
 data = CSV.read(data_path, DataFrame)
@@ -22,7 +22,7 @@ values = data[:, 2]
 timestampYear = data[:, 9]
 timestampDay = data[:, 10]
 
-trainLen = 10*1440
+trainLen = 10*8640 #6 values/min * 6 min/hour * 24 hour/day = 8640 values/day
 testLen = 600
 initLen = 1200
 
@@ -178,6 +178,7 @@ function main()
 	low_alpha, low_beta, low_rho, low_in_s = lower_parameters
 	upper_alpha, upper_beta, upper_rho, upper_in_s = upper_parameters
 
+	println("Optimizing started")
 	optimize(fitness, [low_alpha low_beta low_rho low_in_s; upper_alpha upper_beta upper_rho upper_in_s], custom_pso; logger=custom_logger)
 	# close(lg)
 	sleep(30) # Ensures log is closed before restarting

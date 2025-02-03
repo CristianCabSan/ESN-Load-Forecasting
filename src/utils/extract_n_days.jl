@@ -1,6 +1,6 @@
 using DataFrames, CSV, Random, Dates
 
-n = 3  # Number of unique days to select
+n = 365 # Number of unique days to select
 output_name = "data10secs_with_timestamps_random_days.csv"
 data_name = "data10secs_with_timestamps.csv"
 
@@ -8,29 +8,32 @@ function select_random_days(data::DataFrame, n::Int)
     selected_rows = DataFrame()
     used_dates = Set()  # Keep track of selected dates to avoid repetition
 
-    for _ in 1:n
-        # Get available days that haven't been used
-        available_rows = filter(row -> Date(row.DateTime) ∉ used_dates, data)
-        
-        # Handles edge case of more days selected than available
-        if isempty(available_rows)
-            println("No more unique days available.")
-            break
+    for i in 1:n
+        time = @elapsed begin
+            # Get available days that haven't been used
+            available_rows = filter(row -> Date(row.DateTime) ∉ used_dates, data)
+            
+            # Handles edge case of more days selected than available
+            if isempty(available_rows)
+                println("No more unique days available.")
+                break
+            end
+
+            # Select a random row and gets its date
+            rand_row = rand(eachrow(available_rows))  
+            rand_datetime = rand_row.DateTime
+            rand_date = Date(rand_datetime)
+
+            # Mark this date as used
+            push!(used_dates, rand_date)
+
+            # Select all rows with the same date
+            matching_rows = filter(row -> Date(row.DateTime) == rand_date, data)
+
+            # Append to the final DataFrame
+            append!(selected_rows, matching_rows)
         end
-
-        # Select a random row and gets its date
-        rand_row = rand(eachrow(available_rows))  
-        rand_datetime = rand_row.DateTime
-        rand_date = Date(rand_datetime)
-
-        # Mark this date as used
-        push!(used_dates, rand_date)
-
-        # Select all rows with the same date
-        matching_rows = filter(row -> Date(row.DateTime) == rand_date, data)
-
-        # Append to the final DataFrame
-        append!(selected_rows, matching_rows)
+        println("Vuelta: $i -------- Tiempo: $time")
     end
 
     return selected_rows
