@@ -6,6 +6,7 @@ using Metaheuristics
 using Plots
 using Wandb
 using CSV
+using Dates
 using DataFrames
 
 function load_data(fileName)
@@ -88,10 +89,14 @@ function fitness(hyperparameters, values, timestampYear, timestampDay, inSize, o
 end
 
 function custom_logger(information)
+	global then
 	# Get the current best solution
-	println("$information")	
+	println("\n$information")	
 	println("minimum: $(information.best_sol.f)")
 	println("hyperparameters: $(information.best_sol.x)")
+	println("Current date and time: ", now())
+	println("Time elapsed ", round((now() - then).value / (1000 * 60), digits=2), " minutes")
+	then = now()
 
 	#= hyperparams_dict = Dict(
 	"alpha" => information.best_sol.x[1],
@@ -123,11 +128,11 @@ function custom_logger(information)
 end
 
 function main(
-	fileName, 
-	trainLen, testLen, initLen, 
-	inSize, outSize, resSize, density, 
-	population, selfTrust, neighbourTrust, inertia, maxIterations,
-	lowerBounds, upperBounds, variedBounds = false,
+	fileName="data10secs_with_timestamps_random_days.csv", 
+	trainLen=2*8640, testLen=1*8640, initLen=1*8640, 
+	inSize=3, outSize=1, resSize=1000, density=0.1, 
+	population=30, selfTrust=1.8, neighbourTrust=1.5, inertia=0.8, maxIterations=30,
+	lowerBounds=[0.001, 1*10^(-8), 0.01, 0.01], upperBounds=[0.99, 1*10^(-4), 2, 1], variedBounds=false,
 	log = false
 	)
 
@@ -193,7 +198,8 @@ function main(
 end
 
 while(true)
-	println("############################################################################################################")	
+	println("Current date and time: ", now())
+	global then = now()
 	# Length parameters
 	trainLen = 2*8640 #6 values/min * 6 min/hour * 24 hour/day = 8640 values/day
 	testLen = 1*8640
@@ -210,13 +216,13 @@ while(true)
 	selfTrust = 1.8
 	neighbourTrust = 1.5
 	inertia = 0.8
-	maxIterations = 10
+	maxIterations = 3
 
 	# alpha,		beta,		rho,				in_s
 	# leaking, 	reg coef, 	spectral radius, 	input scaling
 	lowerBounds = 0.001, 1*10^(-8), 0.01, 0.01
 	upperBounds = 0.99, 1*10^(-4), 2, 1
-	variedBounds = false
+	variedBounds = true
 
 	# Logging parameters
 	log = false
