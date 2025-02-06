@@ -1,42 +1,37 @@
-import Random
+using Random
 using LinearAlgebra
-import SparseArrays
+using SparseArrays
 using Distributions
 using Metaheuristics
 using Plots
 using Wandb
-using Dates
-using Logging
 using CSV
 using DataFrames
 
-Random.seed!(rand(1:1000000))
+function load_data(fileName)
+	resources_dir = joinpath(@__DIR__, "..", "..", "resources")
+	dataPath = joinpath(resources_dir, fileName)
+	data = CSV.read(dataPath, DataFrame)
 
-# Load the data
-data_name = "data10secs_with_timestamps_random_days.csv"
-resources_dir = joinpath(@__DIR__, "..", "..", "resources")
-data_path = joinpath(resources_dir, data_name)
-data = CSV.read(data_path, DataFrame)
+	values = data[:, 2]
+	timestampYear = data[:, 9]
+	timestampDay = data[:, 10]
 
-values = data[:, 2]
-timestampYear = data[:, 9]
-timestampDay = data[:, 10]
+	return values, timestampYear, timestampDay
+end
 
-trainLen = 10*8640 #6 values/min * 6 min/hour * 24 hour/day = 8640 values/day
-testLen = 600
-initLen = 1200
+function set_PSO(population, selfTrust, neighbourTrust, inertia, maxIterations)
+	global custom_pso = PSO(;
+		N  = population,
+		C1 = selfTrust,	
+		C2 = neighbourTrust,
+		ω  = inertia,	
+		options = Options(iterations = maxIterations)
+	)
+end
 
-# Generate the ESN reservoir
-inSize = 3
-outSize = 1
-resSize = 1000
-density = 0.1
-errores = Dict()
-randomSeed = 42
+function fitness(hyperparameters, values, timestampYear, timestampDay, inSize, outSize, resSize, density, trainLen, testLen, initLen, randomSeed, errors)
 
-maxCounter = 20
-
-function fitness(hyperparameters)
     # Leaking, regularization coefficient, spectral radius, input scaling
     alpha, beta, rho, in_s = hyperparameters
     Random.seed!(randomSeed)
@@ -84,7 +79,7 @@ function fitness(hyperparameters)
     errorLen = testLen
     global mse = sum(abs2.(values[trainLen + 2:trainLen + errorLen + 1] .- Y[1, 1:errorLen])) / errorLen
 
-    errores[mse] = hyperparameters
+    errors[mse] = hyperparameters
     global p2 = plot(values[trainLen:trainLen + testLen + 2], c = RGB(0, 0.75, 0), label = "Target signal", reuse = false)
     plot!(transpose(Y), c = :blue, label = "Free-running predicted signal")
     title!(p2, "Target and generated signals with timestamps \n MSE = $(mse)")
@@ -92,13 +87,13 @@ function fitness(hyperparameters)
     return mse
 end
 
-
 function custom_logger(information)
 	# Get the current best solution
 	println("$information")	
 	println("minimum: $(information.best_sol.f)")
 	println("hyperparameters: $(information.best_sol.x)")
-	hyperparams_dict = Dict(
+
+	#= hyperparams_dict = Dict(
 	"alpha" => information.best_sol.x[1],
 	"beta" => information.best_sol.x[2],
 	"rho" => information.best_sol.x[3],
@@ -124,66 +119,116 @@ function custom_logger(information)
 	end
 	
 	# Update the last recorded minimum for the next iteration
-	global lastMinimum = current_minimum
+	lastMinimum = current_minimum =#
 end
 
-function main()
-	# Execution control parameters
-	global counter = maxCounter
-    global lastMinimum = 0
-
-	# alpha,		beta,		rho,				in_s
-	# leaking, 	reg coef, 	spectral radius, 	input scaling
-	variation = rand(0.1:0.0001:2.0) #Adds a random variation for each iteration
-	lower_base_parameters = 0.001, 1*10^(-8), 0.01, 0.01
-	upper_base_parameters = 0.99, 1*10^(-4), 2, 1
-
-	lower_parameters = variation .* lower_base_parameters
-	upper_parameters = variation .* upper_base_parameters
-	# PSO parameters
-	Population = 30
-	selfTrust = 1.8
-	neighbourTrust = 1.5
-	inertia = 0.8
-
-	global custom_pso = PSO(;
-		N  = Population,
-		C1 = selfTrust,	
-		C2 = neighbourTrust,
-		ω  = inertia,	
-		options = Options(iterations = 150)
+function main(
+	fileName, 
+	trainLen, testLen, initLen, 
+	inSize, outSize, resSize, density, 
+	population, selfTrust, neighbourTrust, inertia, maxIterations,
+	lowerBounds, upperBounds, variedBounds = false,
+	log = false
 	)
 
-	# # Start a new run, tracking hyperparameters in config
-	# global lg = WandbLogger(project = "PSO-ESN",
-	# name = "Ajustes ESN-$(now())",
-	# config = Dict(
-	# 	"Population" => Population,
-	# 	"selfTrust" => selfTrust,
-	# 	"neighbourTrust" => neighbourTrust,
-	# 	"inertia" => inertia,
-	# 	"lower_parameters" => lower_parameters,
-	# 	"upper_parameters" => upper_parameters,
+	# Sets random seed, later seed is fixed
+	Random.seed!(rand(1:1000000))
 
-	# 	"trainLen" => trainLen,
-	# 	"testLen" => testLen,
-	# 	"initLen" => initLen,
+	# Load the data
+	values, timestampYear, timestampDay = load_data(fileName)
 
-	# 	"resSize" => resSize,
-	# 	"density" => density,
-	# 	"randomSeed" => randomSeed
-	# 	)
-	# )
+	# Sets the PSO parameters
+	set_PSO(population, selfTrust, neighbourTrust, inertia, maxIterations)
 
-	low_alpha, low_beta, low_rho, low_in_s = lower_parameters
-	upper_alpha, upper_beta, upper_rho, upper_in_s = upper_parameters
+	# Generate the error dictionary
+	errors = Dict()
 
-	println("Optimizing started")
-	optimize(fitness, [low_alpha low_beta low_rho low_in_s; upper_alpha upper_beta upper_rho upper_in_s], custom_pso; logger=custom_logger)
-	# close(lg)
-	sleep(30) # Ensures log is closed before restarting
+	if variedBounds
+		variation = rand(0.1:0.0001:2.0) #Adds a random variation for each iteration
+		lowerBounds = variation .* lowerBounds
+		upperBounds = variation .* upperBounds 
+	end
+
+	if log
+		global lg = WandbLogger(
+			project = "PSO-ESN",
+			name = "Ajustes ESN-$(now())",
+			config = Dict(
+				"Population" => population,
+				"selfTrust" => selfTrust,
+				"neighbourTrust" => neighbourTrust,
+				"inertia" => inertia,
+				"lowerBounds" => lowerBounds,
+				"upperBounds" => upperBounds,
+
+				"trainLen" => trainLen,
+				"testLen" => testLen,
+				"initLen" => initLen,
+
+				"resSize" => resSize,
+				"density" => density,
+				"randomSeed" => randomSeed
+			)
+		) 
+	end
+
+	# leaking, 	reg coef, 	spectral radius, 	input scaling
+	low_alpha, low_beta, low_rho, low_in_s = lowerBounds
+	upper_alpha, upper_beta, upper_rho, upper_in_s = upperBounds
+
+	# Fixed seed
+	global randomSeed = 42
+
+	# Create a closure to pass additional parameters to the fitness function
+    fitness_closure = hyperparameters -> fitness(hyperparameters, values, timestampYear, timestampDay, inSize, outSize, resSize, density, trainLen, testLen, initLen, randomSeed, errors)
+
+    optimize(fitness_closure, [low_alpha low_beta low_rho low_in_s; upper_alpha upper_beta upper_rho upper_in_s], custom_pso; logger=custom_logger)
+	
+	if log 
+		# Ensures enough time to close the log correctly
+		close(lg)
+		sleep(30)
+	end
+
 end
 
 while(true)
-	main()
+	println("############################################################################################################")	
+	# Length parameters
+	trainLen = 2*8640 #6 values/min * 6 min/hour * 24 hour/day = 8640 values/day
+	testLen = 1*8640
+	initLen = 1*8640
+
+	# Reservoir parameters
+	inSize = 3
+	outSize = 1
+	resSize = 1000
+	density = 0.1
+
+	# PSO parameters
+	population = 30
+	selfTrust = 1.8
+	neighbourTrust = 1.5
+	inertia = 0.8
+	maxIterations = 10
+
+	# alpha,		beta,		rho,				in_s
+	# leaking, 	reg coef, 	spectral radius, 	input scaling
+	lowerBounds = 0.001, 1*10^(-8), 0.01, 0.01
+	upperBounds = 0.99, 1*10^(-4), 2, 1
+	variedBounds = false
+
+	# Logging parameters
+	log = false
+
+	# Run the main function
+	main(	
+		"data10secs_with_timestamps_random_days.csv", 
+		trainLen, testLen, initLen, 
+		inSize, outSize, resSize, density,
+		population, selfTrust, neighbourTrust, inertia, maxIterations,
+		lowerBounds, upperBounds,variedBounds,
+		log
+		)
+	break
 end

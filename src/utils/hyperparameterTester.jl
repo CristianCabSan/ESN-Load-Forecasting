@@ -17,7 +17,7 @@ using CSV
 using DataFrames
 
 # Load the data
-data_name = "data10secs_with_timestamps.csv"
+data_name = "data10secs_with_timestamps_random_days.csv"
 resources_dir = joinpath(@__DIR__, "..", "..", "resources")
 data_path = joinpath(resources_dir, data_name)
 data = CSV.read(data_path, DataFrame)
@@ -26,27 +26,28 @@ values = data[:, 2]
 timestampYear = data[:, 9]
 timestampDay = data[:, 10]
 
-trainLen = 10*1440
-testLen = 600
+trainLen = 10*8640 #6 values/min * 6 min/hour * 24 hour/day = 8640 values/day
+testLen = 1*8640
 initLen = 1200
 
 # generate the ESN reservoir
 inSize = 3
 outSize = 1
-resSize = 1000
+resSize = 10000
 density = 0.1
 errores = Dict()
 randomSeed = 42
 
 #hyperparameters
-alpha = 1.61845   #Leaking Rate
-beta = 0.00016348   #Regularization Coef
+alpha = 1.618452  #Leaking Rate
+beta = 1.6348000000000002e-8   #Regularization Coef
 in_s = 3.2696     #Input Scaling
-rho =  0.744364   #Spectral Radius
+rho =  1.113858729817337   #Spectral Radius
 hyperparameters = alpha, beta, in_s, rho
 
 # plot some of it
 function fitness(hyperparameters, values)
+	println("Evaluating hyperparameters: $hyperparameters")
 	inSizeCustom = 1
 	#leaking, reg coef, spectral radius, input scaling
 	alpha, beta, rho, in_s = hyperparameters
@@ -168,10 +169,11 @@ end
 
 #println("trainLen: $trainLen")
 println("With timestamps: $(fitnessTimestamps(hyperparameters, values, timestampYear, timestampDay))")
-println("Without timestamps: $(fitness(hyperparameters, values))")
+#println("Without timestamps: $(fitness(hyperparameters, values))")
 
 
 # display all 4 plots
 plot(p1,p2, size=(1200,800))
 #savefig("Documentacion/Starts in day $((paddingLen-397)÷1440)/$testLen testLen/interpolationComparision($(trainLen ÷ 1440) days)($testLen testLen).png")
+
 
