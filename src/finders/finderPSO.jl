@@ -9,6 +9,10 @@ using CSV
 using Dates
 using DataFrames
 
+global counter = 5
+global maxCounter = 5
+global lastMinimum = 0
+
 function load_data(fileName)
 	resources_dir = joinpath(@__DIR__, "..", "..", "resources")
 	dataPath = joinpath(resources_dir, fileName)
@@ -98,18 +102,21 @@ function custom_logger(information)
 	println("Time elapsed ", round((now() - then).value / (1000 * 60), digits=2), " minutes")
 	then = now()
 
-	#= hyperparams_dict = Dict(
+	hyperparams_dict = Dict(
 	"alpha" => information.best_sol.x[1],
 	"beta" => information.best_sol.x[2],
 	"rho" => information.best_sol.x[3],
 	"in_s" => information.best_sol.x[4]
 	)
 	
-	# Logs the information on Wandb
-	#Wandb.log(lg, Dict("minError" => information.best_sol.f, "hyperparameters" => hyperparams_dict))
+	if log
+		# Logs the information on Wandb
+		Wandb.log(lg, Dict("minError" => information.best_sol.f, "hyperparameters" => hyperparams_dict))
+	end
 
 	# If minimun doesnt change in counter iterations the PSO is forcefully stopped
 	current_minimum = information.best_sol.f
+
 	# Check if this is the first run or if the minimum has changed
 	if lastMinimum != 0 && lastMinimum == current_minimum
 		# Decrement the counter if the minimum hasn't improved
@@ -124,7 +131,7 @@ function custom_logger(information)
 	end
 	
 	# Update the last recorded minimum for the next iteration
-	lastMinimum = current_minimum =#
+	global lastMinimum = current_minimum
 end
 
 function main(
@@ -133,8 +140,9 @@ function main(
 	inSize=3, outSize=1, resSize=1000, density=0.1, 
 	population=30, selfTrust=1.8, neighbourTrust=1.5, inertia=0.8, maxIterations=30,
 	lowerBounds=[0.001, 1*10^(-8), 0.01, 0.01], upperBounds=[0.99, 1*10^(-4), 2, 1], variedBounds=false,
-	log = false
+	log_ = false
 	)
+	global log = log_
 
 	# Sets random seed, later seed is fixed
 	Random.seed!(rand(1:1000000))
@@ -153,6 +161,9 @@ function main(
 		lowerBounds = variation .* lowerBounds
 		upperBounds = variation .* upperBounds 
 	end
+
+	# Fixed seed
+	global randomSeed = 42
 
 	if log
 		global lg = WandbLogger(
@@ -181,9 +192,6 @@ function main(
 	low_alpha, low_beta, low_rho, low_in_s = lowerBounds
 	upper_alpha, upper_beta, upper_rho, upper_in_s = upperBounds
 
-	# Fixed seed
-	global randomSeed = 42
-
 	# Create a closure to pass additional parameters to the fitness function
     fitness_closure = hyperparameters -> fitness(hyperparameters, values, timestampYear, timestampDay, inSize, outSize, resSize, density, trainLen, testLen, initLen, randomSeed, errors)
 
@@ -194,7 +202,6 @@ function main(
 		close(lg)
 		sleep(30)
 	end
-
 end
 
 while(true)
@@ -212,11 +219,11 @@ while(true)
 	density = 0.1
 
 	# PSO parameters
-	population = 30
+	population = 100
 	selfTrust = 1.8
 	neighbourTrust = 1.5
 	inertia = 0.8
-	maxIterations = 3
+	maxIterations = 20
 
 	# alpha,		beta,		rho,				in_s
 	# leaking, 	reg coef, 	spectral radius, 	input scaling
@@ -225,7 +232,7 @@ while(true)
 	variedBounds = true
 
 	# Logging parameters
-	log = false
+	local log = true
 
 	# Run the main function
 	main(	
