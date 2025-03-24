@@ -33,7 +33,7 @@ initLen = 1200
 # generate the ESN reservoir
 inSize = 3
 outSize = 1
-resSize = 10000
+resSize = 50
 density = 0.1
 errores = Dict()
 randomSeed = 42
