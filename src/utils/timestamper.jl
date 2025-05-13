@@ -23,7 +23,6 @@ data[!, :Miliseconds_from_year_start] = [
     for row in eachrow(data)
 ]
 
-
 data[!, :Miliseconds_from_day_start] = [
     Dates.value(DateTime(row.DateTime) - DateTime(year(DateTime(row.DateTime)), month(DateTime(row.DateTime)), day(DateTime(row.DateTime))))
     for row in eachrow(data)

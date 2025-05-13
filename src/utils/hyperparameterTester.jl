@@ -1,11 +1,3 @@
-#=
-A minimalistic Echo State Networks demo with Mackey-Glass (delay 17) data 
-in "plain" Julia.
-from https://mantas.info/code/simple_esn/
-(c) 2020 Mantas Lukoševičius
-Distributed under MIT license https://opensource.org/licenses/MIT
-=#
-
 import Random
 using LinearAlgebra
 import SparseArrays

@@ -2,8 +2,8 @@ include("../finders/finderPSO.jl")
 using .PSOModule: finderPSO
 
 # Length parameters
-trainLen = 2*8640 #6 values/min * 6 min/hour * 24 hour/day = 8640 values/day
-testLen = 1*8640
+trainLen = 7*8640 #6 values/min * 60 min/hour * 24 hour/day = 8640 values/day
+testLen = 360
 initLen = 1*8640
 
 # Reservoir parameters
@@ -21,16 +21,13 @@ maxIterations = 20
 
 # alpha,		beta,		rho,				in_s
 # leaking, 	reg coef, 	spectral radius, 	input scaling
-#= lowerBounds = 0.001, 1*10^(-8), 0.01, 0.01
-upperBounds = 0.99, 1*10^(-4), 2, 1 =#
-
-lowerBounds = 0.2, 1*10^(-8), 1, 0.5
-upperBounds = 0.2, 1*10^(-4), 1, 0.5
+lowerBounds = 0.001, 1*10^(-8), 0.01, 0.01
+upperBounds = 0.99, 1*10^(-4), 2, 1
 
 variedBounds = false
 
 # Logging parameters
-log = true
+log = false
 
 # Run the main function
 finderPSO(	

@@ -1,8 +1,24 @@
-using DataFrames, CSV, Random, Dates
+using DataFrames
+import CSV
+import Random
+import Dates
+
+#= 
+    Takes a .csv file with a DateTime column and selects n unique days randomly.
+    Returns a new CSV file with the selected rows.
+=#
+
 
 n = 365 # Number of unique days to select
 output_name = "data10secs_with_timestamps_random_days.csv"
 data_name = "data10secs_with_timestamps.csv"
+
+# Get the resources folder path
+resources_dir = joinpath(@__DIR__, "..", "..", "resources")
+data_path = joinpath(resources_dir, data_name)
+
+# Read the data
+df = CSV.read(data_path, DataFrame, dateformat="yyyy-mm-ddTHH:MM:SS.s")
 
 function select_random_days(data::DataFrame, n::Int)
     selected_rows = DataFrame()
@@ -38,13 +54,6 @@ function select_random_days(data::DataFrame, n::Int)
 
     return selected_rows
 end
-
-# Get the resources folder path
-resources_dir = joinpath(@__DIR__, "..", "..", "resources")
-data_path = joinpath(resources_dir, data_name)
-
-# Reads the data
-df = CSV.read(data_path, DataFrame, dateformat="yyyy-mm-ddTHH:MM:SS.s")
 
 # Save the result to a new CSV
 newData = select_random_days(df, n)

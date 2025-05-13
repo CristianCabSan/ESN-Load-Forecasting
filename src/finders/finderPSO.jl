@@ -92,7 +92,7 @@ module PSOModule
 		global p2 = plot(values[trainLen:trainLen + testLen + 2], c = RGB(0, 0.75, 0), label = "Target signal", reuse = false)
 		plot!(transpose(Y), c = :blue, label = "Free-running predicted signal")
 		title!(p2, "Target and generated signals with timestamps \n MSE = $(mse)")
-
+		
 		return mse
 	end
 
