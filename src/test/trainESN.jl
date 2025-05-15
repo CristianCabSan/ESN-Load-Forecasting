@@ -3,7 +3,7 @@ using .PSOModule: finderPSO
 
 # Length parameters
 trainLen = 7*8640 #6 values/min * 60 min/hour * 24 hour/day = 8640 values/day
-testLen = 360
+testLen = 360 # 6 values/min * 60 min/hour = 1 hour prediction
 initLen = 1*8640
 
 # Reservoir parameters

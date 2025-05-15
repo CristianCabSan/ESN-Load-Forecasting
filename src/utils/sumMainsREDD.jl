@@ -8,13 +8,14 @@ using DataFrames
 =#
 
 # Define the path to the resources directory
-resources_path = joinpath(@__DIR__, "..", "..", "resources")
+resources_dir = joinpath(@__DIR__, "..", "..", "resources")
 
 # One iterarion for each house
 for h in 1:6
     # Read both mains of house h
-    data1 = readdlm(joinpath(resources_path, "redd", "low_freq","house_$(h)", "channel_1.dat"))
-    data2 = readdlm(joinpath(resources_path, "redd", "low_freq","house_$(h)", "channel_2.dat"))
+    house_path = joinpath(resources_dir, "redd", "low_freq","house_$(h)")
+    data1 = readdlm(joinpath(house_path, "channel_1.dat"))
+    data2 = readdlm(joinpath(house_path, "channel_2.dat"))
 
     # Verify that both files have the same length
     @assert size(data1, 1) == size(data2, 1) "Los archivos no tienen la misma longitud"
@@ -27,6 +28,6 @@ for h in 1:6
                    total_power = [x[2] for x in suma_data])
 
     # Saves as CSV
-    destination_path = joinpath(resources_path,"house$(h)_mains_total.csv")
+    destination_path = joinpath(resources_dir, "house$(h)_mains_total.csv")
     CSV.write(destination_path, df)
 end
