@@ -8,7 +8,7 @@ using CSV
 =#
 
 # Get the data
-data_name = "data.csv"
+data_name = "data1min_emptyValues.csv"
 resources_dir = joinpath(@__DIR__, "..", "..", "resources")
 data_path = joinpath(resources_dir, data_name)
 data = CSV.read(data_path, DataFrame)
@@ -62,4 +62,4 @@ for col in names(data)
 end
 
 # Save the updated DataFrame to a new CSV file
-CSV.write("$resources_dir/data1min.csv", data)
+CSV.write(joinpath(resources_dir, "data1min.csv"), data)

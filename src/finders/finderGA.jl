@@ -9,6 +9,10 @@ using Wandb
 using Dates
 using Logging
 
+#======#
+# TODO #
+#======#
+
 Random.seed!(rand(1:1000000))
 
 #= # PSO parameters

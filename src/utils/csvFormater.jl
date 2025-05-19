@@ -37,4 +37,4 @@ else
 end
 
 # Save to CSV
-CSV.write("$resources_dir/data.csv", data)
+CSV.write(joinpath(resources_dir, data1min_emptyValues.csv), data)

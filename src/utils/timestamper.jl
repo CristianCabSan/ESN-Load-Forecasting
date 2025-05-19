@@ -12,7 +12,7 @@ using DataFrames
 =#
 
 # Load the data
-data_name = "data10secs.csv"
+data_name = "data1secRandomDays.csv"
 resources_dir = joinpath(@__DIR__, "..", "..", "resources")
 data_path = joinpath(resources_dir, data_name)
 data = CSV.read(data_path, DataFrame)
@@ -29,4 +29,4 @@ data[!, :Miliseconds_since_day_start] = [
 ]
 
 # Save the updated DataFrame to a new CSV file
-CSV.write(joinpath(resources_dir, "data10secs_with_timestamps.csv"), data)
+CSV.write(joinpath(resources_dir, "data1secTimestampsRandomDays.csv"), data)

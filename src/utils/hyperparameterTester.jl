@@ -9,163 +9,177 @@ using CSV
 using DataFrames
 
 # Load the data
-data_name = "data10secs_with_timestamps_random_days.csv"
-resources_dir = joinpath(@__DIR__, "..", "..", "resources")
-data_path = joinpath(resources_dir, data_name)
-data = CSV.read(data_path, DataFrame)
+fileName = "data1secTimestampsRandomDays.csv"
 
-values = data[:, 2]
-timestampYear = data[:, 9]
-timestampDay = data[:, 10]
-
-trainLen = 10*8640 #6 values/min * 6 min/hour * 24 hour/day = 8640 values/day
-testLen = 1*8640
-initLen = 1200
+trainLen = 50*86400 #6 values/min * 6 min/hour * 24 hour/day = 8640 values/day
+testLen = 3600*12
+initLen = 1*86400
 
 # generate the ESN reservoir
-inSize = 3
+inSize = 1
 outSize = 1
-resSize = 50
+resSize = 500
 density = 0.1
-errores = Dict()
+errors = Dict()
 randomSeed = 42
 
+
+
 #hyperparameters
-alpha = 1.618452  #Leaking Rate
-beta = 1.6348000000000002e-8   #Regularization Coef
-in_s = 3.2696     #Input Scaling
-rho =  1.113858729817337   #Spectral Radius
+alpha = 0.06880643389985228 #Leaking Rate
+beta = 0.18459163742831247   #Regularization Coef
+rho = 2.7949644298276812   #Input Scaling
+in_s =  0.45610339765370234   #Spectral Radius
 hyperparameters = alpha, beta, in_s, rho
 
-# plot some of it
-function fitness(hyperparameters, values)
-	println("Evaluating hyperparameters: $hyperparameters")
-	inSizeCustom = 1
-	#leaking, reg coef, spectral radius, input scaling
+function fitness_timestamps(hyperparameters, values, timestampYear, timestampDay, inSize, outSize, resSize, density, trainLen, testLen, initLen, randomSeed, errors)
+	# Leaking, regularization coefficient, spectral radius, input scaling
 	alpha, beta, rho, in_s = hyperparameters
 	Random.seed!(randomSeed)
-	Win = (rand(resSize, 1+inSizeCustom) .- 0.5) .* 1
-	W = SparseArrays.sprand(resSize, resSize, density, x-> rand(Uniform(-in_s,in_s), x ))
+	
+	# Update input size to account for three inputs
+	Win = (rand(resSize, 1 + inSize) .- 0.5) .* 1
+	W = SparseArrays.sprand(resSize, resSize, density, x -> rand(Uniform(-in_s, in_s), x))
 	W = Array(W)
 
-	# normalizing and setting spectral radius
-	#print("Computing spectral radius...")
+	# Normalizing and setting spectral radius
 	rhoW = maximum(abs.(eigvals(W)))
-	#println("done.")
 	W .*= (rho / rhoW)
 
-	# allocated memory for the design (collected states) matrix
-	X = zeros(1+inSizeCustom+resSize, trainLen-initLen)
-	# set the corresponding target matrix directly
-	Yt = transpose(values[initLen+2:trainLen+1]) 
+	# Allocated memory for the design (collected states) matrix
+	X = zeros(1 + inSize + resSize, trainLen - initLen)
+	# Set the corresponding target matrix directly
+	Yt = transpose(values[initLen + 2:trainLen + 1])
 
-	# run the reservoir with the data and collect X
+	# Run the reservoir with the data and collect X
 	x = zeros(resSize, 1)
 	for t = 1:trainLen
-		# Reemplazar 1,1 por los datos de referencias
-		u = values[t]
-		x = (1-alpha).*x .+ alpha.*tanh.( Win*[1;u] .+ W*x ) 
+		# Use all three inputs: data, timestampYear, and timestampDay
+		u = [values[t]; timestampYear[t]; timestampDay[t]]
+		x = (1 - alpha) .* x .+ alpha .* tanh.(Win * [1; u] .+ W * x)
 		if t > initLen
-			X[:,t-initLen] = [1;u;x]
+			X[:, t - initLen] = [1; u; x]
 		end
 	end
 
-	# train the output by ridge regression
-	# using Julia backslash solver:
-	Wout = transpose((X*transpose(X) + beta*I) \ (X*transpose(Yt)))
+	# Train the output by ridge regression using Julia backslash solver
+	Wout = transpose((X * transpose(X) + beta * I) \ (X * transpose(Yt)))
 
-	# run the trained ESN in a generative mode. no need to initialize here, 
-	# because x is initialized with training data and we continue from there.
+	# Run the trained ESN in a generative mode
 	global Y = zeros(outSize, testLen)
-	u = values[trainLen+1]
-	for t = 1:testLen 
-		x = (1-alpha).*x .+ alpha.*tanh.( Win*[1;u] .+ W*x )
-		y = Wout*[1;u;x]
-		#y2 = data-ReferenceYear
-		#y3 = data-ReferenceDay
-		global Y[:,t] = y
-		# generative mode:
-		u = y
-		# this would be a predictive mode:
-		#u = data[trainLen+t+1]
+	u = [values[trainLen + 1]; timestampYear[trainLen + 1]; timestampDay[trainLen + 1]]
+	for t = 1:testLen
+		x = (1 - alpha) .* x .+ alpha .* tanh.(Win * [1; u] .+ W * x)
+		y = Wout * [1; u; x]
+		global Y[:, t] = y
+		# Generative mode: use the predicted output as input for the next step
+		u = [y[1]; timestampYear[trainLen + t + 1]; timestampDay[trainLen + t + 1]]
 	end
 
-	# compute MSE for the first errorLen time steps
+	# Compute MSE for the first errorLen time steps
 	errorLen = testLen
-	global mse = sum( abs2.( values[trainLen+2:trainLen+errorLen+1] .- 
-		Y[1,1:errorLen] ) ) / errorLen
-	
-	errores[mse] = hyperparameters
-	global p1 = plot(values[trainLen:trainLen+testLen+2], c = RGB(0,0.75,0), label = "Target signal", reuse = false)
+	global mse = sum(abs2.(values[trainLen + 2:trainLen + errorLen + 1] .- Y[1, 1:errorLen])) / errorLen
+	global mape = mean(abs.((values[trainLen+2 : trainLen+errorLen+1] .- Y[1, 1:errorLen]) ./ values[trainLen+2 : trainLen+errorLen+1])) * 100
+
+	errors[mse] = hyperparameters
+	global p1 = plot(values[trainLen:trainLen + testLen + 2], c = RGB(0, 0.75, 0), label = "Target signal", reuse = false)
 	plot!(transpose(Y), c = :blue, label = "Free-running predicted signal")
-	title!(p1, "Target and generated signals without timestamps \n MSE = $(mse)")
+	title!(p1, "Target and generated signals \n MSE = $(mse)") 
+	display(p1)
+
+	return mse, mape
+end
+
+function fitness(hyperparameters, values, inSize, outSize, resSize, density, trainLen, testLen, initLen, randomSeed, errors)
+
+	# Leaking, regularization coefficient, spectral radius, input scaling
+	alpha, beta, rho, in_s = hyperparameters
+	Random.seed!(randomSeed)
 	
-	return mse
+	# Update input size to account for three inputs
+	Win = (rand(resSize, 1 + inSize) .- 0.5) .* 1
+	W = SparseArrays.sprand(resSize, resSize, density, x -> rand(Uniform(-in_s, in_s), x))
+	W = Array(W)
+
+	# Normalizing and setting spectral radius
+	rhoW = maximum(abs.(eigvals(W)))
+	W .*= (rho / rhoW)
+
+	# Allocated memory for the design (collected states) matrix
+	X = zeros(1 + inSize + resSize, trainLen - initLen)
+	# Set the corresponding target matrix directly
+	Yt = transpose(values[initLen + 2:trainLen + 1])
+
+	# Run the reservoir with the data and collect X
+	x = zeros(resSize, 1)
+	for t = 1:trainLen
+		u = values[t]
+		x = (1 - alpha) .* x .+ alpha .* tanh.(Win * [1; u] .+ W * x)
+		if t > initLen
+			X[:, t - initLen] = [1; u; x]
+		end
+	end
+
+	# Train the output by ridge regression using Julia backslash solver
+	Wout = transpose((X * transpose(X) + beta * I) \ (X * transpose(Yt)))
+
+	# Run the trained ESN in a generative mode
+	global Y = zeros(outSize, testLen)
+	u = values[trainLen+1]
+	for t = 1:testLen
+		x = (1 - alpha) .* x .+ alpha .* tanh.(Win * [1; u] .+ W * x)
+		y = Wout * [1; u; x]
+		global Y[:, t] = y
+		# Generative mode: use the predicted output as input for the next step
+		u = y
+	end
+
+	# Compute MSE for the first errorLen time steps
+	errorLen = testLen
+	global mse = sum(abs2.(values[trainLen + 2:trainLen + errorLen + 1] .- Y[1, 1:errorLen])) / errorLen
+	global mape = mean(abs.((values[trainLen+2 : trainLen+errorLen+1] .- Y[1, 1:errorLen]) ./ values[trainLen+2 : trainLen+errorLen+1])) * 100
+
+	errors[mse] = hyperparameters
+	global p1 = plot(values[trainLen:trainLen + testLen + 2], c = RGB(0, 0.75, 0), label = "Target signal", reuse = false)
+	plot!(transpose(Y), c = :blue, label = "Free-running predicted signal")
+	title!(p1, "Target and generated signals \n MSE = $(mse)")
+	display(p1)
+
+	return mse, mape
 end
 
-function fitnessTimestamps(hyperparameters, values, timestampYear, timestampDay)
-    # Leaking, regularization coefficient, spectral radius, input scaling
-    alpha, beta, rho, in_s = hyperparameters
-    Random.seed!(randomSeed)
-    
-    # Update input size to account for three inputs
-    Win = (rand(resSize, 1 + inSize) .- 0.5) .* 1
-    W = SparseArrays.sprand(resSize, resSize, density, x -> rand(Uniform(-in_s, in_s), x))
-    W = Array(W)
+function load_data_timestamps(fileName)
+	resources_dir = joinpath(@__DIR__, "..", "..", "resources")
+	dataPath = joinpath(resources_dir, fileName)
+	data = CSV.read(dataPath, DataFrame)
 
-    # Normalizing and setting spectral radius
-    rhoW = maximum(abs.(eigvals(W)))
-    W .*= (rho / rhoW)
+	values = data[:, 2]
+	timestampYear = data[:, 9]
+	timestampDay = data[:, 10]
 
-    # Allocated memory for the design (collected states) matrix
-    X = zeros(1 + inSize + resSize, trainLen - initLen)
-    # Set the corresponding target matrix directly
-    Yt = transpose(values[initLen + 2:trainLen + 1])
-
-    # Run the reservoir with the data and collect X
-    x = zeros(resSize, 1)
-    for t = 1:trainLen
-        # Use all three inputs: data, timestampYear, and timestampDay
-        u = [values[t]; timestampYear[t]; timestampDay[t]]
-        x = (1 - alpha) .* x .+ alpha .* tanh.(Win * [1; u] .+ W * x)
-        if t > initLen
-            X[:, t - initLen] = [1; u; x]
-        end
-    end
-
-    # Train the output by ridge regression using Julia backslash solver
-    Wout = transpose((X * transpose(X) + beta * I) \ (X * transpose(Yt)))
-
-    # Run the trained ESN in a generative mode
-    global Y = zeros(outSize, testLen)
-    u = [values[trainLen + 1]; timestampYear[trainLen + 1]; timestampDay[trainLen + 1]]
-    for t = 1:testLen
-        x = (1 - alpha) .* x .+ alpha .* tanh.(Win * [1; u] .+ W * x)
-        y = Wout * [1; u; x]
-        global Y[:, t] = y
-        # Generative mode: use the predicted output as input for the next step
-        u = [y[1]; timestampYear[trainLen + t + 1]; timestampDay[trainLen + t + 1]]
-    end
-
-    # Compute MSE for the first errorLen time steps
-    errorLen = testLen
-    global mse = sum(abs2.(values[trainLen + 2:trainLen + errorLen + 1] .- Y[1, 1:errorLen])) / errorLen
-
-    errores[mse] = hyperparameters
-    global p2 = plot(values[trainLen:trainLen + testLen + 2], c = RGB(0, 0.75, 0), label = "Target signal", reuse = false)
-    plot!(transpose(Y), c = :blue, label = "Free-running predicted signal")
-    title!(p2, "Target and generated signals with timestamps \n MSE = $(mse)")
-
-    return mse
+	return values, timestampYear, timestampDay
 end
 
-#println("trainLen: $trainLen")
-println("With timestamps: $(fitnessTimestamps(hyperparameters, values, timestampYear, timestampDay))")
-#println("Without timestamps: $(fitness(hyperparameters, values))")
+function load_data(fileName)
+	resources_dir = joinpath(@__DIR__, "..", "..", "resources")
+	dataPath = joinpath(resources_dir, fileName)
+	data = CSV.read(dataPath, DataFrame)
+
+	values = data[:, 2]
+
+	return values
+end
+
+if inSize == 1
+	values = load_data(fileName)
+	fitness(hyperparameters, values, inSize, outSize, resSize, density, trainLen, testLen, initLen, randomSeed, errors)
+else
+	values, timestampYear, timestampDay = load_data_timestamps(fileName)
+	fitness_timestamps(hyperparameters, values, timestampYear, timestampDay, inSize, outSize, resSize, density, trainLen, testLen, initLen, randomSeed, errors)
+end
 
 
-# display all 4 plots
-plot(p1,p2, size=(1200,800))
+
 #savefig("Documentacion/Starts in day $((paddingLen-397)÷1440)/$testLen testLen/interpolationComparision($(trainLen ÷ 1440) days)($testLen testLen).png")
 
 

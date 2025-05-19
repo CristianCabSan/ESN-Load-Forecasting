@@ -12,12 +12,12 @@ module PSOModule
 
 	export finderPSO
 
-	# Parameters for the PSO stop control when the minimum doesn't change
+	# Parameters for the PSO stop when the minimum doesn't change
 	global counter = 5
 	global maxCounter = 5 # Maximum number of iterarions without change before stopping
 	global lastMinimum = 0
 
-	function load_data(fileName)
+	function load_data_timestamps(fileName)
 		resources_dir = joinpath(@__DIR__, "..", "..", "resources")
 		dataPath = joinpath(resources_dir, fileName)
 		data = CSV.read(dataPath, DataFrame)
@@ -27,6 +27,16 @@ module PSOModule
 		timestampDay = data[:, 10]
 
 		return values, timestampYear, timestampDay
+	end
+
+	function load_data(fileName)
+		resources_dir = joinpath(@__DIR__, "..", "..", "resources")
+		dataPath = joinpath(resources_dir, fileName)
+		data = CSV.read(dataPath, DataFrame)
+
+		values = data[:, 2]
+
+		return values
 	end
 
 	function set_PSO(population, selfTrust, neighbourTrust, inertia, maxIterations)
@@ -39,7 +49,7 @@ module PSOModule
 		)
 	end
 
-	function fitness(hyperparameters, values, timestampYear, timestampDay, inSize, outSize, resSize, density, trainLen, testLen, initLen, randomSeed, errors)
+	function fitness_timestamps(hyperparameters, values, timestampYear, timestampDay, inSize, outSize, resSize, density, trainLen, testLen, initLen, randomSeed, errors)
 
 		# Leaking, regularization coefficient, spectral radius, input scaling
 		alpha, beta, rho, in_s = hyperparameters
@@ -89,14 +99,74 @@ module PSOModule
 		global mse = sum(abs2.(values[trainLen + 2:trainLen + errorLen + 1] .- Y[1, 1:errorLen])) / errorLen
 
 		errors[mse] = hyperparameters
-		global p2 = plot(values[trainLen:trainLen + testLen + 2], c = RGB(0, 0.75, 0), label = "Target signal", reuse = false)
+		#= global p2 = plot(values[trainLen:trainLen + testLen + 2], c = RGB(0, 0.75, 0), label = "Target signal", reuse = false)
 		plot!(transpose(Y), c = :blue, label = "Free-running predicted signal")
-		title!(p2, "Target and generated signals with timestamps \n MSE = $(mse)")
+		title!(p2, "Target and generated signals with timestamps \n MSE = $(mse)") =#
 		
+
+		return mse
+	end
+
+	function fitness(hyperparameters, values, inSize, outSize, resSize, density, trainLen, testLen, initLen, randomSeed, errors)
+
+		# Leaking, regularization coefficient, spectral radius, input scaling
+		alpha, beta, rho, in_s = hyperparameters
+		Random.seed!(randomSeed)
+		
+		# Update input size to account for three inputs
+		Win = (rand(resSize, 1 + inSize) .- 0.5) .* 1
+		W = SparseArrays.sprand(resSize, resSize, density, x -> rand(Uniform(-in_s, in_s), x))
+		W = Array(W)
+
+		# Normalizing and setting spectral radius
+		rhoW = maximum(abs.(eigvals(W)))
+		W .*= (rho / rhoW)
+
+		# Allocated memory for the design (collected states) matrix
+		X = zeros(1 + inSize + resSize, trainLen - initLen)
+		# Set the corresponding target matrix directly
+		Yt = transpose(values[initLen + 2:trainLen + 1])
+
+		# Run the reservoir with the data and collect X
+		x = zeros(resSize, 1)
+		for t = 1:trainLen
+			u = values[t]
+			x = (1 - alpha) .* x .+ alpha .* tanh.(Win * [1; u] .+ W * x)
+			if t > initLen
+				X[:, t - initLen] = [1; u; x]
+			end
+		end
+
+		# Train the output by ridge regression using Julia backslash solver
+		Wout = transpose((X * transpose(X) + beta * I) \ (X * transpose(Yt)))
+
+		# Run the trained ESN in a generative mode
+		global Y = zeros(outSize, testLen)
+		u = values[trainLen+1]
+		for t = 1:testLen
+			x = (1 - alpha) .* x .+ alpha .* tanh.(Win * [1; u] .+ W * x)
+			y = Wout * [1; u; x]
+			global Y[:, t] = y
+			# Generative mode: use the predicted output as input for the next step
+			u = values[trainLen+t+1]
+		end
+
+		# Compute MSE for the first errorLen time steps
+		errorLen = testLen
+		global mse = sum(abs2.(values[trainLen + 2:trainLen + errorLen + 1] .- Y[1, 1:errorLen])) / errorLen
+
+		errors[mse] = hyperparameters
+		#= global p2 = plot(values[trainLen:trainLen + testLen + 2], c = RGB(0, 0.75, 0), label = "Target signal", reuse = false)
+		plot!(transpose(Y), c = :blue, label = "Free-running predicted signal")
+		title!(p2, "Target and generated signals with timestamps \n MSE = $(mse)") =#
+		
+
 		return mse
 	end
 
 	function custom_logger(information)
+		
+
 		global then
 		# Get the current best solution
 		println("\n$information")	
@@ -154,9 +224,6 @@ module PSOModule
 		# Sets random seed, later seed is fixed
 		Random.seed!(rand(1:1000000))
 
-		# Load the data
-		values, timestampYear, timestampDay = load_data(fileName)
-
 		# Sets the PSO parameters
 		set_PSO(population, selfTrust, neighbourTrust, inertia, maxIterations)
 
@@ -201,11 +268,17 @@ module PSOModule
 		low_alpha, low_beta, low_rho, low_in_s = lowerBounds
 		upper_alpha, upper_beta, upper_rho, upper_in_s = upperBounds
 
-		# Creates a closure to pass additional parameters to the fitness function
-		fitness_closure = hyperparameters -> fitness(hyperparameters, values, timestampYear, timestampDay, inSize, outSize, resSize, density, trainLen, testLen, initLen, randomSeed, errors)
-
-		optimize(fitness_closure, [low_alpha low_beta low_rho low_in_s; upper_alpha upper_beta upper_rho upper_in_s], custom_pso; logger=custom_logger)
+		# Load the data
+		if inSize == 1
+			values = load_data(fileName)
+			fitness_closure = hyperparameters -> fitness(hyperparameters, values, inSize, outSize, resSize, density, trainLen, testLen, initLen, randomSeed, errors)
+		else
+			values, timestampYear, timestampDay = load_data_timestamps(fileName)
+			fitness_closure = hyperparameters -> fitness_timestamps(hyperparameters, values, timestampYear, timestampDay, inSize, outSize, resSize, density, trainLen, testLen, initLen, randomSeed, errors)
+		end
 		
+		optimize(fitness_closure, [low_alpha low_beta low_rho low_in_s; upper_alpha upper_beta upper_rho upper_in_s], custom_pso; logger=custom_logger)
+
 		# Closes the run
 		if log 
 			# Ensures enough time to close the log correctly
