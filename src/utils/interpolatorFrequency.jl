@@ -9,7 +9,7 @@ using Interpolations
 =#
 
 # Set interpolation interval (in seconds)
-interpolation_interval = 10  
+interpolation_interval = 1  
 
 # Load the data
 data_name = "data1min.csv"
@@ -38,4 +38,4 @@ for col in cols_to_interpolate
 end
 
 # Save the updated DataFrame to a new CSV file
-CSV.write(joinpath(resources_dir, "data10secs.csv"), interp_data)
+CSV.write(joinpath(resources_dir, "data$(interpolation_interval)sec.csv"), interp_data)
