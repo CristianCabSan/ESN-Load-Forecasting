@@ -1,27 +1,31 @@
-# NILM Implementation for Households
+# 🏠 Energy Consumption Prediction Using Echo State Networks (ESN)
 
-This project explores the application of Echo State Networks (ESNs) for predicting power usage and disaggregating electricity consumption at the appliance level. Additionally, metaheuristics such as Particle Swarm Optimization (PSO), Artificial Bee Colony (ABC), and Simulated Annealing (SA) are employed to enhance model performance.
+This project is part of my Bachelor's Thesis (TFG) and focuses on **predicting household energy consumption** using **Echo State Networks (ESNs)** — a simple and cost-effective type of recurrent neural network.
 
----
+## 💡 Why ESNs?
 
-## Overview
+- ✅ **Low computational cost** — ideal for low-resource devices.
+- 🧠 **Simplified training** — only the output layer is trained.
+- 🔁 **Efficient for time series** — perfect for modeling energy patterns.
 
-The project centers on **Non-Intrusive Load Monitoring (NILM)**, a method for estimating the power consumption of individual appliances from a single-point measurement of household electricity usage.
+## 🔍 Optimization with PSO
 
-### Key Features:
-- Application of **Echo State Networks (ESNs)** for sequence prediction tasks in time series data.
-- Optimization of network parameters using **metaheuristics (PSO, ABC, SA)** to improve accuracy and efficiency.
+To improve the ESN's performance, we used **Particle Swarm Optimization (PSO)** to automatically tune its hyperparameters, ensuring:
 
----
+- ⚙️ Better accuracy  
+- 📉 Reduced error  
+- ⏱️ Faster convergence  
 
-## Future Work
+## 🏡 Domestic Context
 
-- Validate the proposed methods using publicly available NILM datasets.
-- Extend the system to support real-time monitoring.
+The model is designed to work in the **household context**, where energy consumption is often non-stationary, irregular, and device-dependent. This makes **ESNs a strong candidate** for practical smart home applications.
 
----
+## 📁 Structure
+📦 ESN-Load-Forecasting
+├── 📂 src/                        # Project source code
+│   ├── 📂 main                    # Main training and evaluation scripts
+│   ├── 📂 optimization            # Hyperparameter optimization algorithms
+│   ├── 📂 utils                   # Dataset preprocessing and format handling utilities
+├── 📂 resources/                  # Datasets used (not included due to large file size)
 
-## Proposed as
 
-Final Degree Project for Computer Engineering  
-**By:** Cristian Caballero Sánchez
