@@ -27,5 +27,3 @@ The model is designed to work in the **household context**, where energy consump
 │   ├── 📂 optimization            # Hyperparameter optimization algorithms
 │   ├── 📂 utils                   # Dataset preprocessing and format handling utilities
 ├── 📂 resources/                  # Datasets used (not included due to large file size)
-
-
