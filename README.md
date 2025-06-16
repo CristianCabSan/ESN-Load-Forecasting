@@ -20,7 +20,7 @@ To improve the ESN's performance, we used **Particle Swarm Optimization (PSO)** 
 
 The model is designed to work in the **household context**, where energy consumption is often non-stationary, irregular, and device-dependent. This makes **ESNs a strong candidate** for practical smart home applications.
 
-## 📁 Structure
+```## 📁 Structure
 📦 ESN-Load-Forecasting
 ├── 📂 src/                        # Project source code
 │   ├── 📂 main                    # Main training and evaluation scripts
