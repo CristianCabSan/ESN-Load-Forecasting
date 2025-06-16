@@ -12,7 +12,6 @@ This project is part of my Bachelor's Thesis (TFG) and focuses on **predicting h
 
 To improve the ESN's performance, we used **Particle Swarm Optimization (PSO)** to automatically tune its hyperparameters, ensuring:
 
-- ⚙️ Better accuracy  
 - 📉 Reduced error  
 - ⏱️ Faster convergence  
 
